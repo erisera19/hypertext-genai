@@ -46,9 +46,10 @@ a small backend doing the same job.
 ```
  file upload
      ↓
- adapters/          one per format; all produce { title, format, blocks[] }
+ adapters/          text formats -> blocks[]; PDF -> the pdf.js document
      ↓
- Reader             renders blocks, captures selection + surrounding blocks
+ Reader/PdfReader   flowing text, or real pages + text layer;
+                    both capture the selection and its surrounding text
      ↓
  core/promptBuilder selection + context + document details → prompt
      ↓
@@ -85,6 +86,8 @@ host layer.
 In:
 
 - Upload and read PDF, DOCX, TXT
+- PDFs render as real pages - original layout, columns, figures and equations
+  intact - with a selectable text layer on top
 - Select any passage; six operations to choose from
 - Prompts grounded in the selected passage plus surrounding paragraphs
 - Responses accumulate in a margin rail for the session
@@ -94,18 +97,13 @@ Not yet:
 
 - **Annotation persistence across sessions.** The rail is session-only.
 - **Voice output.** Text only for now.
-- **True PDF text-layer rendering.** PDFs are currently read by extracting
-  their text and re-rendering it as paragraphs, so the original page layout,
-  figures, and columns are not preserved. Position-accurate highlighting on a
-  rendered PDF page is a larger piece of work.
 - **Scanned PDFs.** These have no text layer and would need OCR. The app
-  detects this and says so rather than failing silently.
+  detects this when the file is opened and says so rather than failing silently.
 
 ## Known rough edges
 
-- Paragraph reconstruction from PDFs is heuristic. Multi-column papers and
-  heavy mathematical notation will come out imperfectly.
 - DOCX loading uses raw text extraction, so tables and complex formatting are
-  flattened.
+  flattened. Only PDFs keep their original layout.
+- PDF pages render at a fixed zoom. There is no zoom control yet.
 - Free-tier rate limits will bite if you fire many operations quickly. The
   app surfaces a clear message when that happens.

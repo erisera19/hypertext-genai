@@ -291,3 +291,71 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ---------- PDF pages ---------- */
+
+.workspace--pdf { max-width: 88rem; }
+
+.pdf { display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+
+.pdf__head {
+  align-self: stretch;
+  margin-bottom: 0.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.page {
+  position: relative;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(26, 28, 32, 0.12), 0 6px 18px rgba(26, 28, 32, 0.07);
+  border-radius: 2px;
+}
+
+.page__canvas { display: block; border-radius: 2px; }
+
+.page__number {
+  position: absolute;
+  bottom: -1.15rem;
+  right: 0;
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+/*
+ * The text layer sits exactly over the rendered page. Its spans are
+ * transparent, so the reader sees the page but selects real text.
+ * These rules follow pdf.js's own text layer contract.
+ */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  caret-color: CanvasText;
+  z-index: 1;
+}
+
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer span.markedContent { top: 0; height: 0; }
+
+.textLayer ::selection { background: rgba(246, 221, 142, 0.55); }
+
+.note__where { color: var(--ink-soft); font-weight: 400; }
+
+@media (max-width: 62rem) {
+  .workspace--pdf { max-width: 100%; }
+  .page { max-width: 100%; }
+  .page__canvas { max-width: 100%; height: auto !important; }
+}

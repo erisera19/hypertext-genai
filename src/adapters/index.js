@@ -1,15 +1,22 @@
 /**
  * Document adapters.
  *
- * Each supported format has one small adapter, and all of them produce the
- * same shape:
+ * Text formats (TXT, DOCX) collapse to an ordered list of blocks and are
+ * read as flowing paragraphs:
  *
- *   { title, format, blocks: string[] }
+ *   { kind: 'blocks', title, format, blocks: string[] }
  *
- * Because every format collapses to an ordered list of text blocks, the
- * reading surface, the selection handling, and everything downstream are
- * written once and work for all three. Adding a format (HTML, EPUB, Markdown)
- * means adding one adapter here.
+ * PDF keeps its own pdf.js document instead of being flattened to text.
+ * Flattening loses columns, figures, tables and equations - the layout is
+ * part of what the reader is looking at, not just the words - so PDF pages
+ * are drawn to canvas and read through a real pdf.js document:
+ *
+ *   { kind: 'pdf', title, format, pdf: PDFDocumentProxy }
+ *
+ * `App.jsx` branches on `kind` to choose `Reader` or `PdfReader`. Adding a
+ * text-like format (HTML, Markdown) means adding one more `kind: 'blocks'`
+ * loader here; a format that needs its own layout would get its own `kind`,
+ * the way PDF did.
  */
 
 import mammoth from 'mammoth/mammoth.browser'
@@ -41,83 +48,56 @@ async function loadDocx(file) {
     .filter((b) => b.length > 0)
 }
 
+/**
+ * A scanned page has no text items at all (or only whitespace) - pdf.js can
+ * still draw its bitmap, but there is nothing for a text layer to sit on,
+ * so selection would silently do nothing. Check before handing the document
+ * to the reader rather than let that fail quietly. Most real papers have
+ * text from page one, so this returns as soon as a page has any.
+ */
+async function hasSelectableText(pdf) {
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n)
+    const content = await page.getTextContent()
+    if (content.items.some((item) => item.str && item.str.trim().length > 0)) {
+      return true
+    }
+  }
+  return false
+}
+
 async function loadPdf(file) {
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
 
-  const pageTexts = []
-  for (let n = 1; n <= pdf.numPages; n++) {
-    const page = await pdf.getPage(n)
-    const content = await page.getTextContent()
-
-    // Rebuild lines from positioned text items, then join lines into
-    // paragraphs. PDF text has no paragraph structure of its own, so this
-    // is a reconstruction rather than a faithful reading of the layout.
-    let line = ''
-    const lines = []
-    let lastY = null
-
-    for (const item of content.items) {
-      const y = item.transform[5]
-      if (lastY !== null && Math.abs(y - lastY) > 2) {
-        if (line.trim()) lines.push(line.trim())
-        line = ''
-      }
-      line += item.str
-      if (item.hasEOL) line += ' '
-      lastY = y
-    }
-    if (line.trim()) lines.push(line.trim())
-
-    pageTexts.push(lines.join('\n'))
-  }
-
-  const joined = pageTexts.join('\n\n')
-  if (!joined.trim()) {
+  if (!(await hasSelectableText(pdf))) {
     throw new Error(
       'No selectable text found in this PDF. It is probably a scanned image, ' +
       'which would need OCR to read.'
     )
   }
 
-  // Merge lines into paragraphs: a line that does not end a sentence is
-  // treated as continuing the one before it.
-  const blocks = []
-  let current = ''
-  for (const ln of joined.split('\n')) {
-    const t = ln.trim()
-    if (!t) {
-      if (current) { blocks.push(current.trim()); current = '' }
-      continue
-    }
-    current += (current ? ' ' : '') + t
-    if (/[.!?:;]["')\]]?$/.test(t) && current.length > 120) {
-      blocks.push(current.trim())
-      current = ''
-    }
-  }
-  if (current.trim()) blocks.push(current.trim())
-
-  return blocks.filter((b) => b.length > 0)
+  return pdf
 }
 
 export async function loadDocument(file) {
   const name = file.name || 'Untitled'
   const ext = name.split('.').pop().toLowerCase()
+  const title = name.replace(/\.[^.]+$/, '')
+
+  if (ext === 'pdf') {
+    const pdf = await loadPdf(file)
+    return { kind: 'pdf', title, format: ext, pdf }
+  }
 
   let blocks
   if (ext === 'txt' || ext === 'md') blocks = await loadTxt(file)
   else if (ext === 'docx') blocks = await loadDocx(file)
-  else if (ext === 'pdf') blocks = await loadPdf(file)
   else throw new Error(`Unsupported file type: .${ext}. Use PDF, DOCX or TXT.`)
 
   if (!blocks.length) throw new Error('That file appears to be empty.')
 
-  return {
-    title: name.replace(/\.[^.]+$/, ''),
-    format: ext,
-    blocks,
-  }
+  return { kind: 'blocks', title, format: ext, blocks }
 }
 
 export const ACCEPTED = '.pdf,.docx,.txt,.md'

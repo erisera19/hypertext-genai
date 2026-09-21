@@ -3,6 +3,7 @@ import { loadDocument, ACCEPTED } from './adapters'
 import { buildPrompt } from './core/promptBuilder'
 import { generate } from './core/llmClient'
 import Reader from './components/Reader'
+import PdfReader from './components/PdfReader'
 import SelectionMenu from './components/SelectionMenu'
 import ResponseRail from './components/ResponseRail'
 
@@ -45,6 +46,7 @@ export default function App() {
         id,
         operation,
         selection: snapshot.text,
+        location: snapshot.location || null,
         status: 'pending',
         response: '',
         error: null,
@@ -125,12 +127,20 @@ export default function App() {
         )}
 
         {doc && (
-          <div className="workspace">
-            <Reader
-              document={doc}
-              onSelect={setSelection}
-              onClearSelection={clearSelection}
-            />
+          <div className={`workspace${doc.kind === 'pdf' ? ' workspace--pdf' : ''}`}>
+            {doc.kind === 'pdf' ? (
+              <PdfReader
+                document={doc}
+                onSelect={setSelection}
+                onClearSelection={clearSelection}
+              />
+            ) : (
+              <Reader
+                document={doc}
+                onSelect={setSelection}
+                onClearSelection={clearSelection}
+              />
+            )}
             <ResponseRail items={items} onDismiss={dismiss} />
           </div>
         )}
