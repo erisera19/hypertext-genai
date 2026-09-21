@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { TextLayer } from 'pdfjs-dist'
+import { computeHighlightBoxesByPage, expandToWordBoundaries } from './pdfSelectionOverlay'
 
 /**
  * Renders a PDF as it actually looks.
@@ -7,8 +8,12 @@ import { TextLayer } from 'pdfjs-dist'
  * Each page is drawn to a canvas, which preserves the real layout - columns,
  * figures, equations, headings, spacing - and an invisible text layer is
  * positioned on top of it. The reader sees the page; the browser selects the
- * text layer. Highlighting therefore works natively and lands exactly where
- * the reader dragged.
+ * text layer.
+ *
+ * Native selection painting is off (see styles.css) because pdf.js's per-line
+ * spans don't line up with the canvas glyphs mid-line. Instead, a highlight
+ * overlay between the canvas and the text layer is redrawn from the live
+ * Selection on every change - see pdfSelectionOverlay.js.
  *
  * Pages render as they scroll into view, so opening a long paper does not
  * block on drawing every page first.
@@ -16,6 +21,7 @@ import { TextLayer } from 'pdfjs-dist'
 
 const SCALE = 1.4
 const CONTEXT_CHARS = 1400
+const NO_BOXES = []
 
 /** Character offset of (node, offset) within a container's text. */
 function offsetWithin(container, node, offset) {
@@ -29,7 +35,7 @@ function offsetWithin(container, node, offset) {
   return null
 }
 
-function Page({ pdf, pageNumber, onTextReady }) {
+function Page({ pdf, pageNumber, onTextReady, highlightBoxes = NO_BOXES }) {
   const wrapRef = useRef(null)
   const canvasRef = useRef(null)
   const textRef = useRef(null)
@@ -129,6 +135,15 @@ function Page({ pdf, pageNumber, onTextReady }) {
       style={size ? { width: size.width, height: size.height } : undefined}
     >
       <canvas className="page__canvas" ref={canvasRef} />
+      <div className="page__highlight" aria-hidden="true">
+        {highlightBoxes.map((box, i) => (
+          <div
+            key={i}
+            className="page__highlight-box"
+            style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
+          />
+        ))}
+      </div>
       <div className="page__text textLayer" ref={textRef} />
       <span className="page__number" aria-hidden="true">{pageNumber}</span>
     </div>
@@ -138,23 +153,57 @@ function Page({ pdf, pageNumber, onTextReady }) {
 export default function PdfReader({ document: doc, onSelect, onClearSelection }) {
   const rootRef = useRef(null)
   const pageTextRef = useRef(new Map())
+  const rafRef = useRef(null)
+  const [highlightBoxes, setHighlightBoxes] = useState({})
 
   const handleTextReady = useCallback((pageNumber, text) => {
     pageTextRef.current.set(pageNumber, text)
   }, [])
 
+  // Redraws the highlight overlay from whatever the live Selection is right
+  // now. Never caches pixel boxes across calls - everything is measured
+  // fresh each time, so a resize, a zoom change, or a page finishing its
+  // render all self-correct the next time this runs.
+  const recomputeHighlights = useCallback(() => {
+    const root = rootRef.current
+    if (!root) return
+
+    const sel = window.getSelection()
+    if (!sel || sel.isCollapsed || !sel.rangeCount) {
+      setHighlightBoxes({})
+      return
+    }
+
+    const raw = sel.getRangeAt(0)
+    if (!root.contains(raw.commonAncestorContainer)) return
+
+    const range = expandToWordBoundaries(raw)
+    setHighlightBoxes(computeHighlightBoxesByPage(range, root))
+  }, [])
+
+  const scheduleRecompute = useCallback(() => {
+    if (rafRef.current !== null) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null
+      recomputeHighlights()
+    })
+  }, [recomputeHighlights])
+
   const readSelection = useCallback(() => {
     const sel = window.getSelection()
-    if (!sel || sel.isCollapsed) { onClearSelection(); return }
-
-    const text = sel.toString().trim()
-    if (text.length < 2) { onClearSelection(); return }
+    if (!sel || sel.isCollapsed || !sel.rangeCount) { onClearSelection(); return }
 
     const root = rootRef.current
     if (!root) return
 
-    const range = sel.getRangeAt(0)
-    if (!root.contains(range.commonAncestorContainer)) return
+    const raw = sel.getRangeAt(0)
+    if (!root.contains(raw.commonAncestorContainer)) return
+
+    // The action bar reads the same word-snapped range the overlay draws,
+    // so the highlighted passage and the one sent to the model always match.
+    const range = expandToWordBoundaries(raw)
+    const text = range.toString().trim()
+    if (text.length < 2) { onClearSelection(); return }
 
     const pageOf = (node) => {
       const el = node.nodeType === 1 ? node : node.parentElement
@@ -220,6 +269,30 @@ export default function PdfReader({ document: doc, onSelect, onClearSelection })
     }
   }, [readSelection, onClearSelection])
 
+  // Redraw as the selection itself changes (dragging, double/triple-click,
+  // Escape, the app clearing the selection after an operation runs) and as
+  // layout changes under a fixed selection (browser zoom, window resize).
+  useEffect(() => {
+    document.addEventListener('selectionchange', scheduleRecompute)
+    window.addEventListener('resize', scheduleRecompute)
+    return () => {
+      document.removeEventListener('selectionchange', scheduleRecompute)
+      window.removeEventListener('resize', scheduleRecompute)
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+    }
+  }, [scheduleRecompute])
+
+  // Each page's box is sized once its canvas and text layer are ready, so a
+  // ResizeObserver on the page containers catches that first render too -
+  // not just later reflows.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const ro = new ResizeObserver(scheduleRecompute)
+    root.querySelectorAll('[data-page]').forEach((el) => ro.observe(el))
+    return () => ro.disconnect()
+  }, [scheduleRecompute, doc])
+
   const pages = Array.from({ length: doc.pdf.numPages }, (_, i) => i + 1)
 
   return (
@@ -229,7 +302,13 @@ export default function PdfReader({ document: doc, onSelect, onClearSelection })
         <p className="reader__meta">PDF · {doc.pdf.numPages} pages</p>
       </header>
       {pages.map((n) => (
-        <Page key={n} pdf={doc.pdf} pageNumber={n} onTextReady={handleTextReady} />
+        <Page
+          key={n}
+          pdf={doc.pdf}
+          pageNumber={n}
+          onTextReady={handleTextReady}
+          highlightBoxes={highlightBoxes[n] || NO_BOXES}
+        />
       ))}
     </div>
   )

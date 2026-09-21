@@ -314,6 +314,33 @@ body {
 
 .page__canvas { display: block; border-radius: 2px; }
 
+/*
+ * Drawn instead of native selection painting - pdf.js's per-line spans
+ * don't line up with the canvas glyphs mid-line, so the browser's own
+ * selection highlight drifts. These boxes are computed from the same
+ * selection, snapped to whole words. See pdfSelectionOverlay.js.
+ */
+/*
+ * No z-index here on purpose. Setting one would create a stacking context
+ * and isolate .page__highlight-box's mix-blend-mode from the canvas below
+ * it, blending against an empty backdrop instead - the highlight would
+ * wash the text out rather than sit over it like a marker. DOM order
+ * (after the static canvas) plus .textLayer's explicit z-index: 1 already
+ * gives the right paint order: canvas, then this, then the text layer.
+ */
+.page__highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.page__highlight-box {
+  position: absolute;
+  background: rgba(246, 221, 142, 0.62);
+  mix-blend-mode: multiply;
+  border-radius: 3px;
+}
+
 .page__number {
   position: absolute;
   bottom: -1.15rem;
@@ -350,7 +377,13 @@ body {
 
 .textLayer span.markedContent { top: 0; height: 0; }
 
-.textLayer ::selection { background: rgba(246, 221, 142, 0.55); }
+/*
+ * Painted by .page__highlight-box instead - see above. `color` must be
+ * reset too, or the global `::selection { color: var(--ink) }` still
+ * paints these (otherwise transparent) text-layer spans opaque over the
+ * canvas glyphs beneath them.
+ */
+.textLayer ::selection { background: transparent; color: transparent; }
 
 .note__where { color: var(--ink-soft); font-weight: 400; }
 
