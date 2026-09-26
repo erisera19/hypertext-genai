@@ -5,11 +5,14 @@
   "type": "module",
   "description": "Dynamic hypertext with generative AI - a reader-driven reading tool",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -n vite,persist -c blue,green \"vite\" \"node server/index.js\"",
+    "dev:client": "vite",
+    "dev:server": "node server/index.js",
     "build": "vite build",
     "preview": "vite preview"
   },
   "dependencies": {
+    "express": "^4.21.1",
     "mammoth": "^1.8.0",
     "pdfjs-dist": "^4.7.76",
     "react": "^18.3.1",
@@ -17,6 +20,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^9.0.1",
     "vite": "^5.4.21"
   }
 }

@@ -10,7 +10,8 @@ target formats.
 
 ## Running it
 
-You need Node 18 or newer.
+You need Node 22.5 or newer (the persistence server uses Node's built-in
+`node:sqlite`, which needs that version).
 
 ```bash
 npm install
@@ -24,7 +25,11 @@ and paste it into `.env` as `GEMINI_API_KEY`. Then:
 npm run dev
 ```
 
-Open http://localhost:5173 and load a PDF, DOCX, or TXT file.
+This starts two processes together: the Vite dev server (port 5173) and the
+persistence server (port 5175, storing to `data/app.db`). Open
+http://localhost:5173 and load a PDF, DOCX, or TXT file.
+
+To run them separately: `npm run dev:client` and `npm run dev:server`.
 
 **If you get a "model not found" error**, the model name in `.env` is out of
 date. Free-tier model names change; check the current one in AI Studio and
@@ -39,7 +44,27 @@ proxies to Gemini. The key is never bundled into client JavaScript.
 `.env` is gitignored. Do not commit it.
 
 This arrangement works for local development. A deployed version would need
-a small backend doing the same job.
+a small backend doing the same job — the persistence server (below) already
+is one, so the two could merge at deploy time.
+
+## Annotation persistence
+
+Highlights and their AI responses are saved so a document you open again is
+restored the way you left it — no accounts, no login:
+
+- **Document identity** is the SHA-256 hash of the file's bytes, computed in
+  the browser. Reopening the same file, even renamed, matches its saved
+  record; a different file never collides with it.
+- **Reader identity** is a random ID generated once and kept in
+  `localStorage` (`src/core/readerId.js`). It scopes annotations so two
+  people opening the same paper don't see each other's notes.
+- The **persistence server** (`server/`) is a small standalone Express +
+  `node:sqlite` process, separate from Vite, proxied at `/api/documents` and
+  `/api/annotations` (see `vite.config.js`). Data lives in `data/app.db`
+  (gitignored).
+- If the persistence server is down, reading and prompting still work — it's
+  a stretch feature layered on top, not a dependency of the core flow. Saves
+  and lookups fail silently to the console in that case.
 
 ## How it works
 
@@ -65,10 +90,17 @@ src/
 ├── core/                 host-independent logic
 │   ├── operations.js     the menu of reader-chosen actions
 │   ├── promptBuilder.js  how a selection becomes a prompt
-│   └── llmClient.js      provider-agnostic model client
+│   ├── llmClient.js      provider-agnostic model client
+│   ├── hash.js           SHA-256 of a file's bytes (document identity)
+│   ├── readerId.js       anonymous per-browser reader ID
+│   └── persistence.js    client for the persistence API
 ├── adapters/             one loader per document format
 ├── components/           the reading interface
 └── App.jsx               wiring
+
+server/                   standalone persistence server (Express + node:sqlite)
+├── index.js               /api/documents/lookup, /api/annotations routes
+└── db.js                  schema + queries
 ```
 
 `core/` deliberately knows nothing about React or the browser chrome. A
@@ -90,12 +122,12 @@ In:
   intact - with a selectable text layer on top
 - Select any passage; six operations to choose from
 - Prompts grounded in the selected passage plus surrounding paragraphs
-- Responses accumulate in a margin rail for the session
+- Responses accumulate in a margin rail, saved as they're generated
+- Reopening a previously-seen document restores its saved highlights/responses
 - Visible notice that responses are AI-generated and may be wrong
 
 Not yet:
 
-- **Annotation persistence across sessions.** The rail is session-only.
 - **Voice output.** Text only for now.
 - **Scanned PDFs.** These have no text layer and would need OCR. The app
   detects this when the file is opened and says so rather than failing silently.

@@ -35,6 +35,10 @@ export default defineConfig(({ mode }) => {
             })
           },
         },
+        // Annotation persistence - handled by the separate server in
+        // server/index.js (run alongside Vite via `npm run dev`).
+        '/api/documents': 'http://localhost:5175',
+        '/api/annotations': 'http://localhost:5175',
       },
     },
   }

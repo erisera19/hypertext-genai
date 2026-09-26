@@ -62,6 +62,12 @@ body {
   white-space: nowrap;
 }
 
+.bar__restore {
+  font-size: 0.8rem;
+  color: var(--accent, var(--ink-soft));
+  font-style: italic;
+}
+
 /* ---------- buttons ---------- */
 
 .btn {

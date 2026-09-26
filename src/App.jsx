@@ -2,6 +2,9 @@ import { useCallback, useRef, useState } from 'react'
 import { loadDocument, ACCEPTED } from './adapters'
 import { buildPrompt } from './core/promptBuilder'
 import { generate } from './core/llmClient'
+import { getOperation } from './core/operations'
+import { sha256Hex } from './core/hash'
+import { lookupDocument, saveAnnotation, deleteSavedAnnotation } from './core/persistence'
 import Reader from './components/Reader'
 import PdfReader from './components/PdfReader'
 import SelectionMenu from './components/SelectionMenu'
@@ -9,12 +12,26 @@ import ResponseRail from './components/ResponseRail'
 
 let nextId = 1
 
+function restoredItem(row) {
+  return {
+    id: nextId++,
+    savedId: row.id,
+    operation: getOperation(row.operationId),
+    selection: row.selection,
+    location: row.location,
+    status: 'done',
+    response: row.response,
+    error: null,
+  }
+}
+
 export default function App() {
   const [doc, setDoc] = useState(null)
   const [loadError, setLoadError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selection, setSelection] = useState(null)
   const [items, setItems] = useState([])
+  const [restoreNotice, setRestoreNotice] = useState(null)
   const fileInput = useRef(null)
 
   async function openFile(file) {
@@ -22,10 +39,24 @@ export default function App() {
     setLoading(true)
     setLoadError(null)
     setSelection(null)
+    setRestoreNotice(null)
     try {
       const loaded = await loadDocument(file)
-      setDoc(loaded)
+      const hash = await sha256Hex(await file.arrayBuffer())
+      setDoc({ ...loaded, hash })
       setItems([])
+
+      try {
+        const rows = await lookupDocument({ hash, title: loaded.title, format: loaded.format })
+        if (rows.length) {
+          setItems(rows.map(restoredItem))
+          setRestoreNotice(`Restored ${rows.length} saved note${rows.length === 1 ? '' : 's'} from a previous visit.`)
+        }
+      } catch (err) {
+        // Persistence is a stretch feature: if the server is unreachable,
+        // reading and prompting must still work without it.
+        console.warn('Could not reach the persistence server:', err.message)
+      }
     } catch (err) {
       setLoadError(err.message)
       setDoc(null)
@@ -68,6 +99,21 @@ export default function App() {
       setItems((prev) =>
         prev.map((it) => (it.id === id ? { ...it, status: 'done', response } : it))
       )
+
+      try {
+        const saved = await saveAnnotation({
+          documentHash: doc.hash,
+          operationId: operation.id,
+          selection: snapshot.text,
+          location: snapshot.location || null,
+          response,
+        })
+        setItems((prev) =>
+          prev.map((it) => (it.id === id ? { ...it, savedId: saved.id } : it))
+        )
+      } catch (err) {
+        console.warn('Could not save this note:', err.message)
+      }
     } catch (err) {
       setItems((prev) =>
         prev.map((it) =>
@@ -78,7 +124,13 @@ export default function App() {
   }
 
   function dismiss(id) {
+    const item = items.find((it) => it.id === id)
     setItems((prev) => prev.filter((it) => it.id !== id))
+    if (item?.savedId) {
+      deleteSavedAnnotation(item.savedId).catch((err) =>
+        console.warn('Could not delete this saved note:', err.message)
+      )
+    }
   }
 
   return (
@@ -88,6 +140,9 @@ export default function App() {
         <div className="bar__actions">
           {doc && (
             <span className="bar__file">{doc.title}</span>
+          )}
+          {restoreNotice && (
+            <span className="bar__restore">{restoreNotice}</span>
           )}
           <button className="btn" onClick={() => fileInput.current?.click()}>
             {doc ? 'Open another' : 'Open a document'}
