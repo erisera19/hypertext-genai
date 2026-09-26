@@ -33,13 +33,11 @@ function toBlocks(raw) {
     .filter((b) => b.length > 0)
 }
 
-async function loadTxt(file) {
-  const raw = await file.text()
-  return toBlocks(raw)
+function loadTxt(arrayBuffer) {
+  return toBlocks(new TextDecoder().decode(arrayBuffer))
 }
 
-async function loadDocx(file) {
-  const arrayBuffer = await file.arrayBuffer()
+async function loadDocx(arrayBuffer) {
   const { value } = await mammoth.extractRawText({ arrayBuffer })
   // mammoth separates paragraphs with single newlines
   return value
@@ -66,9 +64,11 @@ async function hasSelectableText(pdf) {
   return false
 }
 
-async function loadPdf(file) {
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+async function loadPdf(arrayBuffer) {
+  // pdf.js transfers the buffer it is given to its worker, which detaches it.
+  // The caller still needs these bytes (to upload, or to hash), so hand over
+  // a copy rather than the original.
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise
 
   if (!(await hasSelectableText(pdf))) {
     throw new Error(
@@ -80,24 +80,35 @@ async function loadPdf(file) {
   return pdf
 }
 
-export async function loadDocument(file) {
-  const name = file.name || 'Untitled'
-  const ext = name.split('.').pop().toLowerCase()
-  const title = name.replace(/\.[^.]+$/, '')
-
-  if (ext === 'pdf') {
-    const pdf = await loadPdf(file)
-    return { kind: 'pdf', title, format: ext, pdf }
+/**
+ * Loads a document from raw bytes. Used both for a file the reader picked
+ * from disk and for one fetched back out of their library, so a stored
+ * document renders through exactly the same path it did the first time -
+ * which is what keeps saved highlight offsets valid.
+ */
+export async function loadFromBytes({ arrayBuffer, title, format }) {
+  if (format === 'pdf') {
+    const pdf = await loadPdf(arrayBuffer)
+    return { kind: 'pdf', title, format, pdf }
   }
 
   let blocks
-  if (ext === 'txt' || ext === 'md') blocks = await loadTxt(file)
-  else if (ext === 'docx') blocks = await loadDocx(file)
-  else throw new Error(`Unsupported file type: .${ext}. Use PDF, DOCX or TXT.`)
+  if (format === 'txt' || format === 'md') blocks = loadTxt(arrayBuffer)
+  else if (format === 'docx') blocks = await loadDocx(arrayBuffer)
+  else throw new Error(`Unsupported file type: .${format}. Use PDF, DOCX or TXT.`)
 
   if (!blocks.length) throw new Error('That file appears to be empty.')
 
-  return { kind: 'blocks', title, format: ext, blocks }
+  return { kind: 'blocks', title, format, blocks }
+}
+
+export async function loadDocument(file) {
+  const name = file.name || 'Untitled'
+  const format = name.split('.').pop().toLowerCase()
+  const title = name.replace(/\.[^.]+$/, '')
+  const arrayBuffer = await file.arrayBuffer()
+
+  return { document: await loadFromBytes({ arrayBuffer, title, format }), arrayBuffer }
 }
 
 export const ACCEPTED = '.pdf,.docx,.txt,.md'

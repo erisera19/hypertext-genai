@@ -35,6 +35,12 @@ export default defineConfig(({ mode }) => {
             })
           },
         },
+        // Accounts, library and annotations - handled by the standalone
+        // server in server/index.js (run alongside Vite by `npm run dev`).
+        '/api/auth': 'http://localhost:5175',
+        '/api/library': 'http://localhost:5175',
+        '/api/documents': 'http://localhost:5175',
+        '/api/annotations': 'http://localhost:5175',
       },
     },
   }
