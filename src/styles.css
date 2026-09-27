@@ -385,11 +385,8 @@ body {
   margin: 0 0 1.25rem;
 }
 
-/*
- * A restored highlight in a text document. Unlike the PDF reader's overlay
- * boxes, this is a real element wrapping the characters, so it can take the
- * click that reveals its answer directly.
- */
+/* --- A restored highlight in a text document --- */
+
 .reader__mark {
   background: rgba(246, 221, 142, 0.5);
   color: inherit;
@@ -399,6 +396,57 @@ body {
 }
 
 .reader__mark:hover { background: var(--mark); }
+
+.reader__heading {
+  font-family: var(--serif);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 2rem 0 0.75rem;
+}
+
+.reader__heading--2 { font-size: 1.25rem; }
+.reader__heading--3 { font-size: 1.08rem; }
+
+/*
+ * A wide table must not stretch the reading measure or push the page into a
+ * horizontal scroll, so it scrolls inside its own box. The wrapper carries the
+ * scrolling; `data-block` stays on the table itself, which is what selection
+ * and highlight offsets are measured against.
+ */
+.reader__table-wrap {
+  overflow-x: auto;
+  margin: 0 0 1.5rem;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.reader__table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.reader__table th,
+.reader__table td {
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--rule);
+  border-right: 1px solid var(--rule);
+}
+
+.reader__table th:last-child,
+.reader__table td:last-child { border-right: none; }
+.reader__table tbody tr:last-child td { border-bottom: none; }
+
+.reader__table thead th {
+  font-weight: 600;
+  background: #f2f1ec;
+  border-bottom: 1px solid #d3d4cf;
+  white-space: nowrap;
+}
 
 /* ---------- selection menu ---------- */
 
@@ -558,20 +606,7 @@ body {
 
 .page__canvas { display: block; border-radius: 2px; }
 
-/*
- * Drawn instead of native selection painting - pdf.js's per-line spans
- * don't line up with the canvas glyphs mid-line, so the browser's own
- * selection highlight drifts. These boxes are computed from the same
- * selection, snapped to whole words. See pdfSelectionOverlay.js.
- */
-/*
- * No z-index here on purpose. Setting one would create a stacking context
- * and isolate .page__highlight-box's mix-blend-mode from the canvas below
- * it, blending against an empty backdrop instead - the highlight would
- * wash the text out rather than sit over it like a marker. DOM order
- * (after the static canvas) plus .textLayer's explicit z-index: 1 already
- * gives the right paint order: canvas, then this, then the text layer.
- */
+
 .page__highlight {
   position: absolute;
   inset: 0;
@@ -585,13 +620,7 @@ body {
   border-radius: 3px;
 }
 
-/*
- * A mark the reader left on a previous visit, restored from its saved
- * anchor. Lighter than the live selection so the passage being worked on
- * now stays the brighter one. Clicks are hit-tested on the page rather than
- * handled here - the overlay is pointer-events: none and the text layer
- * sits above it, so a box can never receive the event itself.
- */
+
 .page__highlight-box--saved { background: rgba(246, 221, 142, 0.4); }
 
 .page__number {
@@ -602,11 +631,7 @@ body {
   color: var(--ink-soft);
 }
 
-/*
- * The text layer sits exactly over the rendered page. Its spans are
- * transparent, so the reader sees the page but selects real text.
- * These rules follow pdf.js's own text layer contract.
- */
+
 .textLayer {
   position: absolute;
   inset: 0;
@@ -630,12 +655,6 @@ body {
 
 .textLayer span.markedContent { top: 0; height: 0; }
 
-/*
- * Painted by .page__highlight-box instead - see above. `color` must be
- * reset too, or the global `::selection { color: var(--ink) }` still
- * paints these (otherwise transparent) text-layer spans opaque over the
- * canvas glyphs beneath them.
- */
 .textLayer ::selection { background: transparent; color: transparent; }
 
 .note__where { color: var(--ink-soft); font-weight: 400; }
