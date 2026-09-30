@@ -15,6 +15,7 @@ import {
   saveAnnotation,
   deleteSavedAnnotation,
 } from './core/api'
+import { cancel as cancelSpeech, speak, whenVoicesReady } from './core/speechClient'
 import Reader from './components/Reader'
 import PdfReader from './components/PdfReader'
 import SelectionMenu from './components/SelectionMenu'
@@ -58,6 +59,13 @@ export default function App() {
   const [items, setItems] = useState([])
   const [notice, setNotice] = useState(null)
   const [focusedAnnotationId, setFocusedAnnotationId] = useState(null)
+  /*
+   * Speech is a single queue for the whole page, so which note is being read
+   * cannot be each note's own business - starting one has to stop another.
+   * The state lives here for the same reason `focusedAnnotationId` does.
+   */
+  const [speakingId, setSpeakingId] = useState(null)
+  const [canSpeak, setCanSpeak] = useState(false)
   const fileInput = useRef(null)
 
   const signedIn = !!user
@@ -95,10 +103,46 @@ export default function App() {
     })()
   }, [])
 
+  /* ---------- reading answers aloud ---------- */
+
+  // Voices arrive asynchronously, and a machine with only network-backed ones
+  // counts as having none, so the button appears only once that is settled.
+  useEffect(() => {
+    let cancelled = false
+    whenVoicesReady().then((voices) => {
+      if (!cancelled) setCanSpeak(voices.length > 0)
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  // Nothing should still be talking after the component goes away.
+  useEffect(() => cancelSpeech, [])
+
+  const stopSpeaking = useCallback(() => {
+    cancelSpeech()
+    setSpeakingId(null)
+  }, [])
+
+  const speakItem = useCallback(
+    (item) => {
+      setSpeakingId(item.id)
+      speak({
+        text: item.response,
+        onEnd: () => setSpeakingId(null),
+        onError: (err) => {
+          setSpeakingId(null)
+          setNotice(err.message)
+        },
+      })
+    },
+    []
+  )
+
   /* ---------- opening documents ---------- */
 
   async function openFile(file) {
     if (!file) return
+    stopSpeaking()
     setLoading(true)
     setLoadError(null)
     setSelection(null)
@@ -143,6 +187,7 @@ export default function App() {
   }
 
   async function openFromLibrary(entry) {
+    stopSpeaking()
     setOpeningHash(entry.hash)
     setLoadError(null)
     setSelection(null)
@@ -184,6 +229,7 @@ export default function App() {
   }
 
   function closeDocument() {
+    stopSpeaking()
     setDoc(null)
     setItems([])
     setSelection(null)
@@ -280,6 +326,7 @@ export default function App() {
 
   function dismiss(id) {
     const item = items.find((it) => it.id === id)
+    if (id === speakingId) stopSpeaking()
     setItems((prev) => prev.filter((it) => it.id !== id))
     if (item?.savedId) {
       deleteSavedAnnotation(item.savedId).catch((err) => {
@@ -405,7 +452,15 @@ export default function App() {
                 onRevealAnnotation={revealAnnotation}
               />
             )}
-            <ResponseRail items={items} onDismiss={dismiss} focusedId={focusedAnnotationId} />
+            <ResponseRail
+              items={items}
+              onDismiss={dismiss}
+              focusedId={focusedAnnotationId}
+              canSpeak={canSpeak}
+              speakingId={speakingId}
+              onSpeak={speakItem}
+              onStopSpeaking={stopSpeaking}
+            />
           </div>
         )}
       </main>

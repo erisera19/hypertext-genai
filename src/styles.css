@@ -537,6 +537,32 @@ body {
 
 .note__dismiss:hover { color: var(--ink); }
 
+.note__tools {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex-shrink: 0;
+}
+
+.note__speak {
+  font: inherit;
+  font-size: 0.72rem;
+  line-height: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  padding: 0.15rem 0.3rem;
+  border-radius: 3px;
+}
+
+.note__speak:hover { color: var(--accent); background: #eceade; }
+.note__speak:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* Reading aloud is the one action here that keeps running after the click,
+   so it stays visibly on until it stops. */
+.note__speak--on { color: var(--accent); background: #eceade; }
+
 .note__quote {
   font-family: var(--serif);
   font-size: 0.82rem;
