@@ -11,12 +11,6 @@ import { offsetWithin } from './domOffsets'
  * figures, equations, headings, spacing - and an invisible text layer is
  * positioned on top of it. The reader sees the page; the browser selects the
  * text layer.
- *
- * Native selection painting is off (see styles.css) because pdf.js's per-line
- * spans don't line up with the canvas glyphs mid-line. Instead, a highlight
- * overlay between the canvas and the text layer is redrawn from the live
- * Selection on every change - see pdfSelectionOverlay.js.
- *
  * Pages render as they scroll into view, so opening a long paper does not
  * block on drawing every page first.
  */
@@ -24,6 +18,89 @@ import { offsetWithin } from './domOffsets'
 const SCALE = 1.4
 const CONTEXT_CHARS = 1400
 const NO_BOXES = []
+const THUMB_WIDTH = 60
+
+/**
+ * One page of the navigator strip.
+ *
+ * Drawn from the same pdf.js document the reader is already holding, so a
+ * thumbnail costs a small render and no network at all. Like the pages
+ * themselves these render only once they are near the strip's viewport - a
+ * three-hundred-page paper would otherwise rasterise three hundred canvases
+ * to show the reader the first four.
+ */
+function Thumb({ pdf, pageNumber, current, onGo }) {
+  const wrapRef = useRef(null)
+  const canvasRef = useRef(null)
+  const [visible, setVisible] = useState(false)
+  const renderedRef = useRef(false)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && setVisible(true)),
+      { rootMargin: '400px 0px' }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (!visible || renderedRef.current) return
+    let cancelled = false
+    let renderTask = null
+
+    ;(async () => {
+      const page = await pdf.getPage(pageNumber)
+      if (cancelled) return
+
+      const scale = THUMB_WIDTH / page.getViewport({ scale: 1 }).width
+      const viewport = page.getViewport({ scale })
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = Math.floor(viewport.width * dpr)
+      canvas.height = Math.floor(viewport.height * dpr)
+      canvas.style.width = `${viewport.width}px`
+      canvas.style.height = `${viewport.height}px`
+
+      renderTask = page.render({
+        canvasContext: canvas.getContext('2d'),
+        viewport,
+        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null,
+      })
+
+      try {
+        await renderTask.promise
+      } catch (err) {
+        if (err?.name === 'RenderingCancelledException') return
+        throw err
+      }
+      if (!cancelled) renderedRef.current = true
+    })()
+
+    return () => {
+      cancelled = true
+      renderTask?.cancel()
+    }
+  }, [visible, pdf, pageNumber])
+
+  return (
+    <button
+      type="button"
+      ref={wrapRef}
+      className={`pagerail__item${current ? ' pagerail__item--current' : ''}`}
+      onClick={() => onGo(pageNumber)}
+      aria-label={`Page ${pageNumber}`}
+      aria-current={current ? 'page' : undefined}
+    >
+      <canvas className="pagerail__thumb" ref={canvasRef} />
+      <span className="pagerail__n">{pageNumber}</span>
+    </button>
+  )
+}
 
 function Page({
   pdf,
@@ -184,6 +261,8 @@ export default function PdfReader({
   onClearSelection,
   savedAnnotations = [],
   onRevealAnnotation,
+  currentPage = 1,
+  onPageChange,
 }) {
   const rootRef = useRef(null)
   const pageTextRef = useRef(new Map())
@@ -382,26 +461,63 @@ export default function PdfReader({
 
   const pages = Array.from({ length: doc.pdf.numPages }, (_, i) => i + 1)
 
+  /*
+   * Which page the reader is on, for the counter in the bar and the mark in
+   * the navigator. The margins shrink the observed area to a band across the
+   * middle of the scroller, so exactly one page is "current" - thresholds
+   * alone would report two whenever a page boundary is on screen.
+   */
+  useEffect(() => {
+    const scroller = rootRef.current
+    if (!scroller || !onPageChange) return
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.find((e) => e.isIntersecting)
+        if (hit) onPageChange(Number(hit.target.dataset.page))
+      },
+      { root: scroller, rootMargin: '-45% 0px -45% 0px' }
+    )
+    scroller.querySelectorAll('[data-page]').forEach((el) => io.observe(el))
+    return () => io.disconnect()
+  }, [onPageChange, doc])
+
+  const goToPage = useCallback((n) => {
+    rootRef.current
+      ?.querySelector(`[data-page="${n}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
+
   return (
-    <div className="pdf" ref={rootRef}>
-      <header className="pdf__head">
-        <h1 className="reader__title">{doc.title}</h1>
-        <p className="reader__meta">
-          PDF · {doc.pdf.numPages} pages
-          {anchored.length > 0 && ` · ${anchored.length} saved highlight${anchored.length === 1 ? '' : 's'}`}
-        </p>
-      </header>
-      {pages.map((n) => (
-        <Page
-          key={n}
-          pdf={doc.pdf}
-          pageNumber={n}
-          onTextReady={handleTextReady}
-          highlightBoxes={highlightBoxes[n] || NO_BOXES}
-          savedBoxes={savedBoxes[n] || NO_BOXES}
-          onRevealAnnotation={onRevealAnnotation}
-        />
-      ))}
+    <div className="pdf">
+      <nav className="pagerail" aria-label="Pages">
+        {pages.map((n) => (
+          <Thumb
+            key={n}
+            pdf={doc.pdf}
+            pageNumber={n}
+            current={n === currentPage}
+            onGo={goToPage}
+          />
+        ))}
+        <span className="pagerail__count">
+          {currentPage} / {doc.pdf.numPages}
+        </span>
+      </nav>
+
+      <div className="pdf__scroll" ref={rootRef}>
+        {pages.map((n) => (
+          <Page
+            key={n}
+            pdf={doc.pdf}
+            pageNumber={n}
+            onTextReady={handleTextReady}
+            highlightBoxes={highlightBoxes[n] || NO_BOXES}
+            savedBoxes={savedBoxes[n] || NO_BOXES}
+            onRevealAnnotation={onRevealAnnotation}
+          />
+        ))}
+      </div>
     </div>
   )
 }
