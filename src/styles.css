@@ -871,6 +871,33 @@ a:hover { color: var(--link-hover); }
 
 .rail__hint { font-size: 0.9375rem; line-height: 1.6; color: var(--ink-soft); margin: 0; }
 
+/* ---------- previous notes ---------- */
+
+.rail__previous { border-top: 1px solid var(--rule); padding-top: 1.25rem; }
+
+.rail__disclose {
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  text-align: left;
+}
+
+.rail__disclose:hover { color: var(--ink); }
+.rail__disclose:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+.rail__chevron { font-size: 1.0625rem; width: 1.05rem; }
+
+.rail__previousList { display: flex; flex-direction: column; gap: 1.5rem; padding-top: 1.25rem; }
+
 .rail__foot {
   margin: auto 0 0;
   padding-top: 1.25rem;
@@ -886,44 +913,58 @@ a:hover { color: var(--link-hover); }
 /* The note whose highlight was just clicked in the document. */
 .note--focused { background: #eceee7; border-radius: 6px; padding: 0.875rem; margin: -0.875rem; }
 
-.note__head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; }
+/* The passage and its operation are the control that folds the note. */
+.note__toggle {
+  font: inherit;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.note__toggle:disabled { cursor: default; }
+.note__toggle:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; border-radius: 3px; }
+.note__toggle:hover:not(:disabled) .note__op { color: var(--link-hover); }
+
+/* Set a step above the passage beside it: the glyph is light at any size,
+   so it needs the extra to read as a control rather than punctuation. */
+.note__chevron {
+  flex-shrink: 0;
+  width: 1.05rem;
+  font-size: 1.0625rem;
+  line-height: 1.32;
+  color: var(--ink-soft);
+}
+
+.note__toggle:hover:not(:disabled) .note__chevron { color: var(--ink); }
+
+.note__toggle:disabled .note__chevron { visibility: hidden; }
+
+.note__summary { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
 
 .note__op { font-size: 0.8125rem; font-weight: 600; color: var(--ink); }
 .note__where { color: var(--ink-soft); font-weight: 400; }
 
-.note__tools { display: flex; align-items: center; gap: 0.1rem; flex-shrink: 0; }
-
-.note__dismiss {
-  font: inherit;
-  font-size: 1.1rem;
-  line-height: 1;
-  border: 0;
-  background: transparent;
-  color: var(--ink-faint);
-  cursor: pointer;
-  padding: 0 0.15rem;
-}
-
-.note__dismiss:hover { color: var(--warn); }
-
-.note__speak {
+/* Deleting is not reversible, so it says what it does and sits apart. */
+.note__delete {
+  align-self: flex-start;
   font: inherit;
   font-size: 0.75rem;
-  line-height: 1;
   border: 0;
+  padding: 0.2rem 0;
   background: transparent;
   color: var(--ink-faint);
   cursor: pointer;
-  padding: 0.2rem 0.35rem;
-  border-radius: 4px;
+  text-decoration: underline;
 }
 
-.note__speak:hover { color: var(--ink); background: #e6e9e1; }
-.note__speak:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
-
-/* Reading aloud is the one action here that keeps running after the click,
-   so it stays visibly on until it stops. */
-.note__speak--on { color: var(--ink); background: #e6e9e1; }
+.note__delete:hover { color: var(--warn); }
 
 /* The passage, shown the way it is marked on the page. */
 .note__quote {
@@ -940,6 +981,10 @@ a:hover { color: var(--link-hover); }
 }
 
 .note__quote mark { background: var(--mark-soft); color: var(--ink); }
+
+/* Folded, a note is just its passage, so the list stays scannable. */
+.note--folded { gap: 0; padding-bottom: 1rem; }
+.note--folded .note__quote { -webkit-line-clamp: 2; line-clamp: 2; }
 
 .note__body p { font-size: 0.9375rem; line-height: 1.65; color: var(--ink-body); margin: 0 0 0.6rem; }
 .note__body p:last-child { margin-bottom: 0; }

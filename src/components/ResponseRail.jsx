@@ -1,40 +1,110 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * The margin rail.
  *
- * Every elaboration the reader has asked for, newest first, each still
- * attached to the passage that prompted it. Responses accumulate the way
- * marginalia builds up on a page - and for a signed-in reader they are saved,
- * so reopening the document brings them all back.
+ * A saved answer belongs to the passage that produced it, so the passage is
+ * how you get back to it: reopening a document marks the page but leaves the
+ * rail quiet, and clicking a mark unfolds that answer. Listing every answer
+ * on open made the rail a sidebar of results; this way the highlight is the
+ * link, and following it is what retrieves the elaboration.
  *
- * `focusedId` is set when the reader clicks one of the restored highlights in
- * the document: that note scrolls into view and is briefly marked, which is
- * what connects a mark on the page to the answer it produced.
+ * Which section a note sits in is decided when the document opens and never
+ * changes: answers asked for in this sitting stay at the top, and everything
+ * restored waits under "Previous notes". A note that moved between sections
+ * as you folded it would be impossible to keep track of.
  *
- * An answer can also be read aloud. Only one note can speak at a time, so
- * `speakingId` is owned by `App` rather than by each note - see the speech
- * client for why that is a property of the browser and not a choice. When the
- * machine has no on-device voice, `canSpeak` is false and the control is
- * omitted entirely rather than shown failing.
+ * Folding is therefore the only thing the chevron changes, and it works the
+ * same in both sections - which the earlier hide button did not, since a note
+ * in "Previous notes" was already hidden and clicking it did nothing.
+ *
+ * Deleting is separate and deliberately unlike it: folding is reversible and
+ * gets a chevron, deleting is not and gets the word.
  */
 export default function ResponseRail({
   items,
   onDismiss,
+  onToggle,
   focusedId,
   signedIn = false,
   onSignIn,
-  canSpeak = false,
-  speakingId = null,
-  onSpeak,
-  onStopSpeaking,
 }) {
   const focusedRef = useRef(null)
+  const [showPrevious, setShowPrevious] = useState(false)
+
+  const current = items.filter((it) => !it.previous)
+  const previous = items.filter((it) => it.previous)
+
+  // Following a mark into a note that is filed away opens the drawer first,
+  // or the note would unfold out of sight.
+  const focusedIsPrevious =
+    focusedId !== null &&
+    focusedId !== undefined &&
+    previous.some((it) => it.savedId === focusedId)
+
+  useEffect(() => {
+    if (focusedIsPrevious) setShowPrevious(true)
+  }, [focusedIsPrevious, focusedId])
 
   useEffect(() => {
     if (focusedId === null || focusedId === undefined) return
     focusedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }, [focusedId])
+  }, [focusedId, showPrevious])
+
+  const note = (item) => {
+    const focused = item.savedId !== undefined && item.savedId === focusedId
+    const open = !!item.expanded
+    const working = item.status !== 'done'
+
+    return (
+      <section
+        className={`note${focused ? ' note--focused' : ''}${open ? '' : ' note--folded'}`}
+        key={item.id}
+        ref={focused ? focusedRef : null}
+      >
+        {/*
+          The whole header is the control, so the target is the note rather
+          than a 12px chevron. Pending and failed answers have nothing to fold
+          away, so they stay open and lose the affordance.
+        */}
+        <button
+          className="note__toggle"
+          onClick={() => onToggle(item.id)}
+          aria-expanded={open}
+          disabled={working}
+        >
+          <span className="note__chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+          <span className="note__summary">
+            <span className="note__quote"><mark>{item.selection}</mark></span>
+            <span className="note__op">
+              {item.operation.label}
+              {item.location && <span className="note__where"> · {item.location}</span>}
+            </span>
+          </span>
+        </button>
+
+        {item.status === 'pending' && <p className="note__pending">Writing an answer…</p>}
+        {item.status === 'error' && <p className="note__error">{item.error}</p>}
+
+        {item.status === 'done' && open && (
+          <>
+            <div className="note__body">
+              {item.response.split('\n').filter(Boolean).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
+            <button
+              className="note__delete"
+              onClick={() => onDismiss(item.id)}
+              title="Delete this note permanently"
+            >
+              Delete note
+            </button>
+          </>
+        )}
+      </section>
+    )
+  }
 
   const footer = signedIn ? (
     <p className="rail__foot">
@@ -55,73 +125,29 @@ export default function ResponseRail({
     <aside className="rail" aria-label="Notes" aria-live="polite">
       <h2 className="rail__title">Notes</h2>
 
-      {!items.length && (
+      {!current.length && (
         <p className="rail__hint">
-          Select any passage in the document, then choose what you want to know
-          about it. Answers appear here.
+          {previous.length > 0
+            ? 'Click a highlighted passage to open the answer it produced, or unfold one below.'
+            : 'Select any passage in the document, then choose what you want to know about it. Answers appear here.'}
         </p>
       )}
 
-      {items.map((item) => {
-        const focused = item.savedId !== undefined && item.savedId === focusedId
-        const speaking = item.id === speakingId
-        const speakable = canSpeak && item.status === 'done'
+      {current.map(note)}
 
-        return (
-          <section
-            className={`note${focused ? ' note--focused' : ''}`}
-            key={item.id}
-            ref={focused ? focusedRef : null}
+      {previous.length > 0 && (
+        <div className="rail__previous">
+          <button
+            className="rail__disclose"
+            onClick={() => setShowPrevious((on) => !on)}
+            aria-expanded={showPrevious}
           >
-            <blockquote className="note__quote">
-              <mark>{item.selection}</mark>
-            </blockquote>
-
-            <header className="note__head">
-              <span className="note__op">
-                {item.operation.label}
-                {item.location && <span className="note__where"> · {item.location}</span>}
-              </span>
-              <span className="note__tools">
-                {speakable && (
-                  <button
-                    className={`note__speak${speaking ? ' note__speak--on' : ''}`}
-                    onClick={() => (speaking ? onStopSpeaking() : onSpeak(item))}
-                    aria-label={
-                      speaking
-                        ? `Stop reading the ${item.operation.label} answer`
-                        : `Read the ${item.operation.label} answer aloud`
-                    }
-                    title={speaking ? 'Stop reading' : 'Read aloud'}
-                  >
-                    {speaking ? '◼' : '▶'}
-                  </button>
-                )}
-                <button
-                  className="note__dismiss"
-                  onClick={() => onDismiss(item.id)}
-                  aria-label={`Delete ${item.operation.label} note`}
-                  title="Delete this note"
-                >
-                  ×
-                </button>
-              </span>
-            </header>
-
-            {item.status === 'pending' && <p className="note__pending">Writing an answer…</p>}
-
-            {item.status === 'error' && <p className="note__error">{item.error}</p>}
-
-            {item.status === 'done' && (
-              <div className="note__body">
-                {item.response.split('\n').filter(Boolean).map((para, i) => (
-                  <p key={i}>{para}</p>
-                ))}
-              </div>
-            )}
-          </section>
-        )
-      })}
+            <span className="rail__chevron" aria-hidden="true">{showPrevious ? '▾' : '▸'}</span>
+            Previous notes ({previous.length})
+          </button>
+          {showPrevious && <div className="rail__previousList">{previous.map(note)}</div>}
+        </div>
+      )}
 
       {footer}
     </aside>
