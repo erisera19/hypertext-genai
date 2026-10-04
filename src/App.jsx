@@ -15,7 +15,6 @@ import {
   saveAnnotation,
   deleteSavedAnnotation,
 } from './core/api'
-import { cancel as cancelSpeech, speak, whenVoicesReady } from './core/speechClient'
 import Reader from './components/Reader'
 import PdfReader from './components/PdfReader'
 import SelectionMenu from './components/SelectionMenu'
@@ -27,6 +26,10 @@ let nextId = 1
 
 /**
  * A saved row from the server, as a rail item.
+ *
+ * Restored folded shut (`expanded: false`) and filed under "Previous notes":
+ * its mark goes back on the page, but the answer waits until the reader
+ * clicks the passage that produced it, or unfolds it from the list.
  *
  * Notes outlive edits to the operations menu: an id that is no longer in it
  * falls back to showing itself as the label, so a renamed or retired
@@ -43,6 +46,10 @@ function restoredItem(row) {
     status: 'done',
     response: row.response,
     error: null,
+    expanded: false,
+    // Which half of the rail it belongs to. Fixed when the document opens, so
+    // a note never jumps between sections under the reader.
+    previous: true,
   }
 }
 
@@ -59,13 +66,6 @@ export default function App() {
   const [items, setItems] = useState([])
   const [notice, setNotice] = useState(null)
   const [focusedAnnotationId, setFocusedAnnotationId] = useState(null)
-  /*
-   * Speech is a single queue for the whole page, so which note is being read
-   * cannot be each note's own business - starting one has to stop another.
-   * The state lives here for the same reason `focusedAnnotationId` does.
-   */
-  const [speakingId, setSpeakingId] = useState(null)
-  const [canSpeak, setCanSpeak] = useState(false)
   const [query, setQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -117,46 +117,10 @@ export default function App() {
     return () => document.removeEventListener('mousedown', close)
   }, [accountOpen])
 
-  /* ---------- reading answers aloud ---------- */
-
-  // Voices arrive asynchronously, and a machine with only network-backed ones
-  // counts as having none, so the button appears only once that is settled.
-  useEffect(() => {
-    let cancelled = false
-    whenVoicesReady().then((voices) => {
-      if (!cancelled) setCanSpeak(voices.length > 0)
-    })
-    return () => { cancelled = true }
-  }, [])
-
-  // Nothing should still be talking after the component goes away.
-  useEffect(() => cancelSpeech, [])
-
-  const stopSpeaking = useCallback(() => {
-    cancelSpeech()
-    setSpeakingId(null)
-  }, [])
-
-  const speakItem = useCallback(
-    (item) => {
-      setSpeakingId(item.id)
-      speak({
-        text: item.response,
-        onEnd: () => setSpeakingId(null),
-        onError: (err) => {
-          setSpeakingId(null)
-          setNotice(err.message)
-        },
-      })
-    },
-    []
-  )
-
   /* ---------- opening documents ---------- */
 
   async function openFile(file) {
     if (!file) return
-    stopSpeaking()
     setLoading(true)
     setLoadError(null)
     setSelection(null)
@@ -202,7 +166,6 @@ export default function App() {
   }
 
   async function openFromLibrary(entry) {
-    stopSpeaking()
     setOpeningHash(entry.hash)
     setLoadError(null)
     setSelection(null)
@@ -245,7 +208,6 @@ export default function App() {
   }
 
   function closeDocument() {
-    stopSpeaking()
     setDoc(null)
     setItems([])
     setSelection(null)
@@ -297,6 +259,8 @@ export default function App() {
         status: 'pending',
         response: '',
         error: null,
+        // Asked for just now, so it arrives open.
+        expanded: true,
       },
       ...prev,
     ])
@@ -343,7 +307,6 @@ export default function App() {
 
   function dismiss(id) {
     const item = items.find((it) => it.id === id)
-    if (id === speakingId) stopSpeaking()
     setItems((prev) => prev.filter((it) => it.id !== id))
     if (item?.savedId) {
       deleteSavedAnnotation(item.savedId).catch((err) => {
@@ -361,9 +324,32 @@ export default function App() {
     [items]
   )
 
+  /** Following a mark on the page unfolds the answer it produced. */
   const revealAnnotation = useCallback((annotationId) => {
+    setItems((prev) =>
+      prev.map((it) => (it.savedId === annotationId ? { ...it, expanded: true } : it))
+    )
     setFocusedAnnotationId(annotationId)
   }, [])
+
+  /*
+   * Folding a note shut is not deleting it: the answer stays, the mark stays
+   * on the page, and either the chevron or the passage opens it again. The
+   * focus is dropped as well, so clicking the same highlight afterwards still
+   * scrolls to it rather than being a no-op.
+   */
+  const toggleNote = useCallback(
+    (id) => {
+      const item = items.find((it) => it.id === id)
+      if (item?.expanded && item.savedId !== undefined && item.savedId === focusedAnnotationId) {
+        setFocusedAnnotationId(null)
+      }
+      setItems((prev) =>
+        prev.map((it) => (it.id === id ? { ...it, expanded: !it.expanded } : it))
+      )
+    },
+    [items, focusedAnnotationId]
+  )
 
   const openPicker = useCallback(() => fileInput.current?.click(), [])
 
@@ -476,13 +462,10 @@ export default function App() {
           <ResponseRail
             items={items}
             onDismiss={dismiss}
+            onToggle={toggleNote}
             focusedId={focusedAnnotationId}
             signedIn={signedIn}
             onSignIn={() => setAuthOpen(true)}
-            canSpeak={canSpeak}
-            speakingId={speakingId}
-            onSpeak={speakItem}
-            onStopSpeaking={stopSpeaking}
           />
         </div>
 
