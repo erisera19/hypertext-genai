@@ -29,9 +29,12 @@ export default function SelectionMenu({ selection, onRun }) {
     const { rect } = selection
     const gap = 10
 
-    // Prefer above the selection; drop below if there is no room.
+    // Prefer above the selection; drop below if there is no room. The menu is
+    // a tall list, so neither side may fit on a short window - clamp last so
+    // it stays on screen even when it overlaps the passage.
     let top = rect.top - menu.height - gap
     if (top < 8) top = rect.top + rect.height + gap
+    top = Math.max(8, Math.min(top, window.innerHeight - menu.height - 8))
 
     // Centre on the selection, kept inside the viewport.
     let left = rect.left + rect.width / 2 - menu.width / 2
