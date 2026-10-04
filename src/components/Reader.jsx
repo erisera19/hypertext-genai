@@ -253,7 +253,8 @@ export default function Reader({
   }
 
   return (
-    <article className="reader" ref={surfaceRef}>
+    <div className="reader" ref={surfaceRef}>
+      <article className="reader__sheet">
       <header className="reader__head">
         <h1 className="reader__title">{doc.title}</h1>
         <p className="reader__meta">
@@ -306,6 +307,7 @@ export default function Reader({
           </p>
         )
       })}
-    </article>
+      </article>
+    </div>
   )
 }
