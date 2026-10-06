@@ -5,7 +5,7 @@ import { generate } from './core/llmClient'
 import { getOperation } from './core/operations'
 import {
   NotSignedIn,
-  currentUser,
+  session,
   logout,
   fetchLibrary,
   removeFromLibrary,
@@ -69,6 +69,7 @@ export default function App() {
   const [query, setQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [canSignUp, setCanSignUp] = useState(true)
   const fileInput = useRef(null)
   const accountRef = useRef(null)
 
@@ -96,7 +97,8 @@ export default function App() {
   useEffect(() => {
     ;(async () => {
       try {
-        const existing = await currentUser()
+        const { user: existing, signupAllowed } = await session()
+        setCanSignUp(signupAllowed)
         if (existing) {
           setUser(existing)
           setLibrary(await fetchLibrary())
@@ -470,7 +472,13 @@ export default function App() {
         </div>
 
         <SelectionMenu selection={selection} onRun={runOperation} />
-        {authOpen && <AuthPanel onClose={() => setAuthOpen(false)} onSignedIn={handleSignedIn} />}
+        {authOpen && (
+        <AuthPanel
+          onClose={() => setAuthOpen(false)}
+          onSignedIn={handleSignedIn}
+          canSignUp={canSignUp}
+        />
+      )}
       </div>
     )
   }
@@ -534,7 +542,13 @@ export default function App() {
           )}
         </main>
 
-        {authOpen && <AuthPanel onClose={() => setAuthOpen(false)} onSignedIn={handleSignedIn} />}
+        {authOpen && (
+        <AuthPanel
+          onClose={() => setAuthOpen(false)}
+          onSignedIn={handleSignedIn}
+          canSignUp={canSignUp}
+        />
+      )}
       </div>
     )
   }
@@ -626,7 +640,13 @@ export default function App() {
       </main>
 
       <SelectionMenu selection={selection} onRun={runOperation} />
-      {authOpen && <AuthPanel onClose={() => setAuthOpen(false)} onSignedIn={handleSignedIn} />}
+      {authOpen && (
+        <AuthPanel
+          onClose={() => setAuthOpen(false)}
+          onSignedIn={handleSignedIn}
+          canSignUp={canSignUp}
+        />
+      )}
     </div>
   )
 }

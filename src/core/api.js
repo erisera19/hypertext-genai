@@ -44,9 +44,14 @@ async function request(path, { method = 'GET', body, raw, query } = {}) {
 
 /* ---------- accounts ---------- */
 
-export async function currentUser() {
-  const { user } = await request('/api/auth/me')
-  return user
+/**
+ * Who is signed in, and whether this copy of the server is taking new
+ * accounts. A closed study turns sign-up off, and the panel should not offer
+ * a route the server will refuse.
+ */
+export async function session() {
+  const { user, signupAllowed } = await request('/api/auth/me')
+  return { user, signupAllowed: signupAllowed !== false }
 }
 
 export async function register({ email, password }) {

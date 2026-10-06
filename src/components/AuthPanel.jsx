@@ -9,7 +9,7 @@ import { login, register } from '../core/api'
  * reader is told that plainly here, because the tool works perfectly well
  * without one and the reason to sign up should be the honest one.
  */
-export default function AuthPanel({ onClose, onSignedIn }) {
+export default function AuthPanel({ onClose, onSignedIn, canSignUp = true }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -17,7 +17,9 @@ export default function AuthPanel({ onClose, onSignedIn }) {
   const [busy, setBusy] = useState(false)
   const emailRef = useRef(null)
 
-  const creating = mode === 'create'
+  // A closed study hands out accounts in advance, so there is no sign-up to
+  // offer and the panel must not show a door the server has locked.
+  const creating = canSignUp && mode === 'create'
 
   useEffect(() => {
     emailRef.current?.focus()
@@ -92,9 +94,11 @@ export default function AuthPanel({ onClose, onSignedIn }) {
             <button className="btn" type="submit" disabled={busy}>
               {busy ? 'Working…' : creating ? 'Create account' : 'Sign in'}
             </button>
-            <button className="auth__switch" type="button" onClick={() => { setMode(creating ? 'login' : 'create'); setError(null) }}>
-              {creating ? 'I already have an account' : 'Create an account instead'}
-            </button>
+            {canSignUp && (
+              <button className="auth__switch" type="button" onClick={() => { setMode(creating ? 'login' : 'create'); setError(null) }}>
+                {creating ? 'I already have an account' : 'Create an account instead'}
+              </button>
+            )}
           </div>
         </form>
 
