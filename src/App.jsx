@@ -24,6 +24,18 @@ import Library from './components/Library'
 
 let nextId = 1
 
+/*
+ * Counts openings, not documents: reopening the same file gets a new number.
+ * It becomes the reader's React key, so every open mounts a clean one.
+ *
+ * Without it, opening a second PDF left the first one on screen. The pages
+ * are keyed by page number, so React reuses them across documents, and each
+ * one keeps a `renderedRef` that says "already drawn" - which made the
+ * effect that would have redrawn it return immediately. Title and page count
+ * updated; the pages themselves did not.
+ */
+let nextDocInstance = 1
+
 /**
  * A saved row from the server, as a rail item.
  *
@@ -135,7 +147,7 @@ export default function App() {
 
       // A guest reads the same way; there is just nowhere to keep the notes.
       if (!signedIn) {
-        setDoc(loaded)
+        setDoc({ ...loaded, instance: nextDocInstance++ })
         setItems([])
         return
       }
@@ -146,7 +158,7 @@ export default function App() {
           title: loaded.title,
           format: loaded.format,
         })
-        setDoc({ ...loaded, hash: stored.hash })
+        setDoc({ ...loaded, hash: stored.hash, instance: nextDocInstance++ })
         setItems(annotations.map(restoredItem))
         if (annotations.length) {
           setNotice(
@@ -156,7 +168,7 @@ export default function App() {
         refreshLibrary()
       } catch (err) {
         if (!handleApiError(err)) setNotice(`Opened without saving: ${err.message}`)
-        setDoc(loaded)
+        setDoc({ ...loaded, instance: nextDocInstance++ })
         setItems([])
       }
     } catch (err) {
@@ -186,7 +198,7 @@ export default function App() {
         format: entry.format,
       })
 
-      setDoc({ ...loaded, hash: entry.hash })
+      setDoc({ ...loaded, hash: entry.hash, instance: nextDocInstance++ })
       setItems(annotations.map(restoredItem))
       refreshLibrary()
     } catch (err) {
@@ -444,6 +456,7 @@ export default function App() {
         <div className="reading">
           {doc.kind === 'pdf' ? (
             <PdfReader
+              key={doc.instance}
               document={doc}
               onSelect={setSelection}
               onClearSelection={clearSelection}
@@ -454,6 +467,7 @@ export default function App() {
             />
           ) : (
             <Reader
+              key={doc.instance}
               document={doc}
               onSelect={setSelection}
               onClearSelection={clearSelection}
