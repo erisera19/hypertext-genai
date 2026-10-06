@@ -72,7 +72,14 @@ setInterval(() => {
 
 export function mountGenerate(app) {
   const key = process.env.GEMINI_API_KEY || ''
-  const model = process.env.GEMINI_MODEL || 'gemini-flash-latest'
+  /*
+   * Pinned, not an alias. `gemini-flash-latest` follows whatever Google
+   * promotes, which is both the most contended model and a moving target -
+   * it silently became a thinking model under us once, and the output
+   * budget that had been fine for months started truncating answers
+   * mid-sentence. A fixed id also lets an evaluation say what it tested.
+   */
+  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
 
   if (!key) {
     console.warn(
