@@ -1,0 +1,36 @@
+# Fly.io configuration.
+#
+# Rename `app` to something unique before the first deploy - Fly app names
+# are global. `fly launch` will offer to do it for you.
+
+app = "glossonomy"
+primary_region = "fra"
+
+[build]
+
+[env]
+  NODE_ENV = "production"
+  PORT = "8080"
+  # Caps the worst case in money if the link travels further than intended.
+  # Per-caller limits live alongside this in server/generate.js.
+  GENERATE_PER_DAY = "400"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # One machine, always. A Fly volume belongs to a single machine, so a
+  # second one would get its own empty disk and half the accounts would
+  # vanish depending on which answered. SQLite makes this non-negotiable.
+  min_machines_running = 1
+  auto_stop_machines = "off"
+  auto_start_machines = true
+
+# The SQLite database and uploaded documents. Without this they live on the
+# container's own disk and are destroyed on every deploy and restart.
+[mounts]
+  source = "data"
+  destination = "/app/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

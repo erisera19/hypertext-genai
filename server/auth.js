@@ -65,19 +65,26 @@ function readCookie(req, name) {
   return null
 }
 
-export function setSessionCookie(res, { token, expires }) {
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    expires,
-    // No `secure` flag: local development is plain HTTP. A deployed version
-    // must set it, or the cookie travels in the clear.
-  })
+/*
+ * `secure` follows the request rather than a build flag: `req.secure` is true
+ * when the reader is on HTTPS, including behind a platform's TLS terminator,
+ * because the app sets `trust proxy`. So a deployment gets a cookie that will
+ * not travel in the clear, and localhost over plain HTTP still works - which
+ * a hard-coded `secure: true` would quietly break.
+ */
+const cookieOptions = (req) => ({
+  httpOnly: true,
+  sameSite: 'lax',
+  path: '/',
+  secure: req.secure,
+})
+
+export function setSessionCookie(req, res, { token, expires }) {
+  res.cookie(COOKIE_NAME, token, { ...cookieOptions(req), expires })
 }
 
-export function clearSessionCookie(res) {
-  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: 'lax', path: '/' })
+export function clearSessionCookie(req, res) {
+  res.clearCookie(COOKIE_NAME, cookieOptions(req))
 }
 
 /**

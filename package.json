@@ -12,6 +12,7 @@
     "dev:client": "vite",
     "dev:server": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.js",
     "preview": "vite preview"
   },
   "dependencies": {

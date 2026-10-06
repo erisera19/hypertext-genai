@@ -1,16 +1,21 @@
 /**
- * Accounts, library and annotation API.
+ * The server: accounts, library, annotations, the model proxy, and in a
+ * deployment the built app itself.
  *
- * A standalone server, separate from the Vite dev server that proxies Gemini.
- * Run both with `npm run dev`; Vite forwards /api/auth, /api/library,
- * /api/documents and /api/annotations here (see vite.config.js).
+ * In development Vite serves the app on 5173 and forwards every /api/ call
+ * here, so the code path under test is the one that ships. In a deployment
+ * this process is the whole thing: `npm run build` then `npm start`.
  *
- * Guest use needs none of this: the reader can open a document and ask
- * questions without an account. Everything here is what an account adds -
- * a library of what you have opened, and the notes you made on it.
+ * Guest use needs none of the account routes: the reader can open a document
+ * and ask questions without one. What an account adds is a library of what
+ * you have opened and the notes you made on it - and, once this is on a
+ * public URL, it is also what stops a stranger spending the API key.
  */
 
 import express from 'express'
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import {
   createUser,
   findUserByEmail,
@@ -35,10 +40,25 @@ import {
   requireUser,
 } from './auth.js'
 import { store, read, isStored, isValidHash, MAX_BYTES } from './files.js'
+import { mountGenerate } from './generate.js'
 
-const PORT = process.env.PERSISTENCE_PORT || 5175
+// Hosts hand the port over in PORT; PERSISTENCE_PORT stays for local runs.
+const PORT = process.env.PORT || process.env.PERSISTENCE_PORT || 5175
+
+/*
+ * Open sign-up is right for a tool anyone can try and not needed for a closed
+ * study.
+ * Set ALLOW_SIGNUP=false to shut the door.
+ */
+const ALLOW_SIGNUP = process.env.ALLOW_SIGNUP !== 'false'
 
 const app = express()
+
+// Behind a platform's TLS terminator the app itself speaks HTTP, so the
+// forwarded headers are what tell it the reader is on HTTPS. That in turn is
+// what decides whether the session cookie gets its `secure` flag.
+app.set('trust proxy', 1)
+
 app.use(express.json())
 app.use(attachUser)
 
@@ -58,6 +78,11 @@ const publicUser = (user) => ({ id: user.id, email: user.email })
 /* ---------- accounts ---------- */
 
 app.post('/api/auth/register', async (req, res) => {
+  if (!ALLOW_SIGNUP) {
+    res.status(403).json({ error: 'This copy is not accepting new accounts.' })
+    return
+  }
+
   const email = String(req.body?.email || '').trim().toLowerCase()
   const password = String(req.body?.password || '')
 
@@ -75,7 +100,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const user = createUser({ email, passwordHash: await hashPassword(password) })
-  setSessionCookie(res, startSession(user.id))
+  setSessionCookie(req, res, startSession(user.id))
   res.status(201).json({ user: publicUser(user) })
 })
 
@@ -96,18 +121,23 @@ app.post('/api/auth/login', async (req, res) => {
     return
   }
 
-  setSessionCookie(res, startSession(user.id))
+  setSessionCookie(req, res, startSession(user.id))
   res.json({ user: publicUser(user) })
 })
 
 app.post('/api/auth/logout', (req, res) => {
   endSession(req.sessionToken)
-  clearSessionCookie(res)
+  clearSessionCookie(req, res)
   res.status(204).end()
 })
 
+// `signupAllowed` lets the sign-in panel hide the create-account route
+// rather than offer one the server will refuse.
 app.get('/api/auth/me', (req, res) => {
-  res.json({ user: req.user ? publicUser(req.user) : null })
+  res.json({
+    user: req.user ? publicUser(req.user) : null,
+    signupAllowed: ALLOW_SIGNUP,
+  })
 })
 
 /* ---------- library ---------- */
@@ -246,6 +276,39 @@ app.delete('/api/annotations/:id', requireUser, (req, res) => {
   res.status(deleted ? 204 : 404).end()
 })
 
+/* ---------- the model ---------- */
+
+// Deliberately not behind requireUser: reading without an account is the
+// point of the tool. See server/generate.js for what bounds it instead.
+mountGenerate(app)
+
+/* ---------- the app itself, when there is a build to serve ---------- */
+
+/*
+ * Only in a deployment. In development Vite serves the app with hot reload
+ * and proxies here, so a stale `dist/` sitting on disk must not shadow it -
+ * hence the explicit opt-in rather than "serve it if the folder exists".
+ */
+const here = dirname(fileURLToPath(import.meta.url))
+const distDir = join(here, '..', 'dist')
+const serveApp = process.env.SERVE_APP === 'true' || process.env.NODE_ENV === 'production'
+
+if (serveApp && existsSync(distDir)) {
+  app.use(express.static(distDir, { maxAge: '1h', index: false }))
+
+  // Everything that is not an API call is the single-page app. Written as
+  // middleware rather than a wildcard route because the pattern syntax for
+  // that changed between Express 4 and 5.
+  app.use((req, res, next) => {
+    if (req.method !== 'GET' || req.path.startsWith('/api/')) return next()
+    res.sendFile(join(distDir, 'index.html'))
+  })
+} else if (serveApp) {
+  console.warn('[server] SERVE_APP is set but there is no dist/ - run `npm run build` first.')
+}
+
 app.listen(PORT, () => {
-  console.log(`[server] accounts + library API on http://localhost:${PORT}`)
+  const what = serveApp && existsSync(distDir) ? 'app + API' : 'API'
+  console.log(`[server] ${what} on http://localhost:${PORT}`)
+  if (!ALLOW_SIGNUP) console.log('[server] sign-up is closed (ALLOW_SIGNUP=false)')
 })
