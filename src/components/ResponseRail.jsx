@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 /**
  * The margin rail.
@@ -21,6 +21,95 @@ import { useEffect, useRef, useState } from 'react'
  * Deleting is separate and deliberately unlike it: folding is reversible and
  * gets a chevron, deleting is not and gets the word.
  */
+
+/** How many lines of the passage show before it is cut off. */
+const QUOTE_LINES = { folded: 2, open: 3 }
+
+function Note({ item, focused, innerRef, onToggle, onDismiss }) {
+  const open = !!item.expanded
+  const working = item.status !== 'done'
+
+  /*
+   * A long selection would otherwise fill the rail and push its own answer
+   * off the bottom, so the passage is clamped and opens on request. Measured
+   * rather than guessed from length: whether three lines is enough depends on
+   * the rail's width and the words themselves.
+   */
+  const [showAll, setShowAll] = useState(false)
+  const [clipped, setClipped] = useState(false)
+  const quoteRef = useRef(null)
+
+  useLayoutEffect(() => {
+    const el = quoteRef.current
+    if (!el || showAll) return
+    setClipped(el.scrollHeight > el.clientHeight + 1)
+  }, [item.selection, open, showAll])
+
+  return (
+    <section
+      className={`note${focused ? ' note--focused' : ''}${open ? '' : ' note--folded'}`}
+      ref={innerRef}
+    >
+      <blockquote
+        className={`note__quote${showAll ? ' note__quote--full' : ''}`}
+        ref={quoteRef}
+        style={{ WebkitLineClamp: showAll ? 'unset' : QUOTE_LINES[open ? 'open' : 'folded'] }}
+      >
+        <mark>{item.selection}</mark>
+      </blockquote>
+
+      {/* Only offered on an open note: folded, the two lines are a label, not
+          something anyone is trying to read. */}
+      {open && (clipped || showAll) && (
+        <button
+          className="note__more"
+          onClick={() => setShowAll((on) => !on)}
+          aria-expanded={showAll}
+        >
+          {showAll ? 'Show less' : 'Show more'}
+        </button>
+      )}
+
+      {/*
+        The operation line is the fold control. Pending and failed answers
+        have nothing to fold away, so they stay open and lose the affordance.
+      */}
+      <button
+        className="note__toggle"
+        onClick={() => onToggle(item.id)}
+        aria-expanded={open}
+        disabled={working}
+      >
+        <span className="note__chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
+        <span className="note__op">
+          {item.operation.label}
+          {item.location && <span className="note__where"> · {item.location}</span>}
+        </span>
+      </button>
+
+      {item.status === 'pending' && <p className="note__pending">Writing an answer…</p>}
+      {item.status === 'error' && <p className="note__error">{item.error}</p>}
+
+      {item.status === 'done' && open && (
+        <>
+          <div className="note__body">
+            {item.response.split('\n').filter(Boolean).map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </div>
+          <button
+            className="note__delete"
+            onClick={() => onDismiss(item.id)}
+            title="Delete this note permanently"
+          >
+            Delete note
+          </button>
+        </>
+      )}
+    </section>
+  )
+}
+
 export default function ResponseRail({
   items,
   onDismiss,
@@ -51,58 +140,17 @@ export default function ResponseRail({
     focusedRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [focusedId, showPrevious])
 
-  const note = (item) => {
+  const render = (item) => {
     const focused = item.savedId !== undefined && item.savedId === focusedId
-    const open = !!item.expanded
-    const working = item.status !== 'done'
-
     return (
-      <section
-        className={`note${focused ? ' note--focused' : ''}${open ? '' : ' note--folded'}`}
+      <Note
         key={item.id}
-        ref={focused ? focusedRef : null}
-      >
-        {/*
-          The whole header is the control, so the target is the note rather
-          than a 12px chevron. Pending and failed answers have nothing to fold
-          away, so they stay open and lose the affordance.
-        */}
-        <button
-          className="note__toggle"
-          onClick={() => onToggle(item.id)}
-          aria-expanded={open}
-          disabled={working}
-        >
-          <span className="note__chevron" aria-hidden="true">{open ? '▾' : '▸'}</span>
-          <span className="note__summary">
-            <span className="note__quote"><mark>{item.selection}</mark></span>
-            <span className="note__op">
-              {item.operation.label}
-              {item.location && <span className="note__where"> · {item.location}</span>}
-            </span>
-          </span>
-        </button>
-
-        {item.status === 'pending' && <p className="note__pending">Writing an answer…</p>}
-        {item.status === 'error' && <p className="note__error">{item.error}</p>}
-
-        {item.status === 'done' && open && (
-          <>
-            <div className="note__body">
-              {item.response.split('\n').filter(Boolean).map((para, i) => (
-                <p key={i}>{para}</p>
-              ))}
-            </div>
-            <button
-              className="note__delete"
-              onClick={() => onDismiss(item.id)}
-              title="Delete this note permanently"
-            >
-              Delete note
-            </button>
-          </>
-        )}
-      </section>
+        item={item}
+        focused={focused}
+        innerRef={focused ? focusedRef : null}
+        onToggle={onToggle}
+        onDismiss={onDismiss}
+      />
     )
   }
 
@@ -133,7 +181,7 @@ export default function ResponseRail({
         </p>
       )}
 
-      {current.map(note)}
+      {current.map(render)}
 
       {previous.length > 0 && (
         <div className="rail__previous">
@@ -145,7 +193,7 @@ export default function ResponseRail({
             <span className="rail__chevron" aria-hidden="true">{showPrevious ? '▾' : '▸'}</span>
             Previous notes ({previous.length})
           </button>
-          {showPrevious && <div className="rail__previousList">{previous.map(note)}</div>}
+          {showPrevious && <div className="rail__previousList">{previous.map(render)}</div>}
         </div>
       )}
 
