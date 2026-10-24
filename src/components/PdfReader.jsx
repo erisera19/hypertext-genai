@@ -153,8 +153,7 @@ function Page({
       const canvas = canvasRef.current
       const textDiv = textRef.current
       if (!canvas || !textDiv) return
-
-      // Draw at device resolution so the page is not soft on retina screens.
+      
       const dpr = window.devicePixelRatio || 1
       canvas.width = Math.floor(viewport.width * dpr)
       canvas.height = Math.floor(viewport.height * dpr)
@@ -176,7 +175,6 @@ function Page({
       }
       if (cancelled) return
 
-      // The text layer needs the scale as a custom property in pdf.js v4.
       textDiv.style.setProperty('--scale-factor', String(viewport.scale))
       textDiv.replaceChildren()
 

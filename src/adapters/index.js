@@ -184,7 +184,7 @@ export async function loadFromBytes({ arrayBuffer, title, format }) {
   }
 
   let blocks
-  if (format === 'txt' || format === 'md') blocks = loadTxt(arrayBuffer)
+  if (format === 'txt') blocks = loadTxt(arrayBuffer)
   else if (format === 'docx') blocks = await loadDocx(arrayBuffer)
   else throw new Error(`Unsupported file type: .${format}. Use PDF, DOCX or TXT.`)
 
@@ -202,4 +202,4 @@ export async function loadDocument(file) {
   return { document: await loadFromBytes({ arrayBuffer, title, format }), arrayBuffer }
 }
 
-export const ACCEPTED = '.pdf,.docx,.txt,.md'
+export const ACCEPTED = '.pdf,.docx,.txt'
