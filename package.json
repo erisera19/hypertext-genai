@@ -1,0 +1,31 @@
+{
+  "name": "hypertext-genai",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Dynamic hypertext with generative AI - a reader-driven reading tool",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "concurrently -n vite,server -c blue,green \"vite\" \"npm run dev:server\"",
+    "dev:client": "vite",
+    "dev:server": "node --env-file-if-exists=.env server/index.js",
+    "build": "vite build",
+    "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.js",
+    "preview": "vite preview",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "mammoth": "^1.8.0",
+    "pdfjs-dist": "^4.7.76",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.3",
+    "concurrently": "^9.0.1",
+    "vite": "^5.4.21"
+  }
+}

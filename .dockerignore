@@ -1,0 +1,18 @@
+# data/ is the one that matters: without it, your local SQLite database -
+# real accounts, password hashes and uploaded documents - would be baked
+# into the image and shipped to the host, where the volume would then be
+# shadowed by it.
+data
+
+node_modules
+dist
+.git
+.env
+.env.local
+*.log
+.DS_Store
+.vite
+
+# Notes and fixtures: no reason to put them in a runtime image.
+*.md
+test
