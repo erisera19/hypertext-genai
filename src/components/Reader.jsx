@@ -2,66 +2,24 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { offsetWithin } from './domOffsets'
 import { BLOCK_MODEL, blockPromptText } from '../adapters'
 
-/**
- * The reading surface.
- *
- * Renders the document's blocks and reports any selection the reader makes,
- * together with the passage around it. Context is gathered by block index
- * rather than by searching the text, so a phrase that appears more than once
- * in the document still resolves to the right place.
- *
- * Blocks are typed - paragraph, heading, table - and each renders as the
- * element it actually is. A table in particular has to stay a table: read as
- * a run of separate paragraphs, a results grid loses which number sat under
- * which heading, which is exactly the relationship a reader selects it to
- * ask about.
- *
- * Saved highlights are restored by wrapping the marked characters in <mark>
- * elements rather than by drawing boxes over the text, which is what the PDF
- * reader has to do. This surface owns its own markup and its text is plain,
- * so splitting it is exact at any width or zoom - there is no geometry to
- * measure and nothing to recompute on resize.
- *
- * Offsets are measured against the block element's own `textContent`, so a
- * table's cells are one continuous run of characters with no separators. That
- * is why the prompt gets `blockPromptText` instead: the model should see
- * " | " between cells, while a highlight has to land on the exact characters
- * the reader dragged over.
- */
+
 
 const CONTEXT_BLOCKS_BEFORE = 2
 const CONTEXT_BLOCKS_AFTER = 2
 
-/**
- * Whether a saved anchor still describes this document's blocks.
- *
- * Offsets only mean anything within the block model they were measured in.
- * DOCX changed model when tables and headings stopped being flattened into
- * paragraphs, so a DOCX anchor written before that points at different blocks
- * entirely - it keeps its answer in the rail and loses its mark, rather than
- * highlighting the wrong words. TXT and MD split exactly as they always did,
- * so their older anchors are still good.
- */
+
 function anchorMatchesModel(anchor, format) {
   if (anchor?.kind !== 'blocks' || !anchor.segments?.length) return false
   return (anchor.model ?? 1) === BLOCK_MODEL || format !== 'docx'
 }
 
-/**
- * An endpoint's offset inside `blockEl`, falling back when the range ends on
- * an element instead of inside a text node - a triple-click selects a whole
- * paragraph that way, and its endpoints are the element itself.
- */
+
 function endpointOffset(blockEl, node, offset, fallback) {
   const direct = offsetWithin(blockEl, node, offset)
   return direct === null ? fallback : direct
 }
 
-/**
- * Splits a block's text into marked and unmarked runs. Marks are applied in
- * start order and clipped against the previous one, so two answers on
- * overlapping passages produce adjacent runs rather than nested elements.
- */
+
 function splitBlock(text, marks) {
   const pieces = []
   let at = 0
@@ -79,12 +37,7 @@ function splitBlock(text, marks) {
   return pieces
 }
 
-/**
- * A table's cells with each block-level mark translated into the cell it
- * falls in. Cells are numbered as one continuous run of characters, matching
- * the table element's `textContent`, so a highlight dragged across several
- * cells reappears in every cell it touched.
- */
+
 function tableCells(rows, marks = []) {
   let at = 0
   return rows.map((row) =>

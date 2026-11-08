@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { login, register } from '../core/api'
 
-/**
- * Sign in or create an account.
- *
- * An account is what turns the margin rail from something that lasts one
- * sitting into a library: what you opened, and what you asked of it. The
- * reader is told that plainly here, because the tool works perfectly well
- * without one and the reason to sign up should be the honest one.
- */
+
+ // Sign in or create an account.
+
 export default function AuthPanel({ onClose, onSignedIn, canSignUp = true }) {
   const [mode, setMode] = useState('login')
   const [email, setEmail] = useState('')
@@ -17,8 +12,7 @@ export default function AuthPanel({ onClose, onSignedIn, canSignUp = true }) {
   const [busy, setBusy] = useState(false)
   const emailRef = useRef(null)
 
-  // A closed study hands out accounts in advance, so there is no sign-up to
-  // offer and the panel must not show a door the server has locked.
+
   const creating = canSignUp && mode === 'create'
 
   useEffect(() => {

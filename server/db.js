@@ -1,26 +1,18 @@
-/**
- * Schema and queries.
- *
- * Accounts change what identity means compared to a purely local tool: a
- * document is still identified by the SHA-256 hash of its bytes, but that
- * hash is now shared - two users who upload the same paper get one stored
- * file and one `documents` row, while their library entries and annotations
- * stay separate. Nothing a user saves is reachable from another account.
- */
+
+ // Schema and queries.
+
 
 import { DatabaseSync } from 'node:sqlite'
 import { mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+
 const here = dirname(fileURLToPath(import.meta.url))
-export const dataDir = join(here, '..', 'data')
+export const dataDir = process.env.DATA_DIR || join(here, '..', 'data')
 mkdirSync(dataDir, { recursive: true })
 
-// Built into Node - avoids the native compilation that better-sqlite3 needs
-// and that fails to build against current Node/V8. Added in 22.5 behind
-// --experimental-sqlite and unflagged from 23.4, so this needs Node 24+ to
-// run as plain `node server/index.js`.
+
 export const db = new DatabaseSync(join(dataDir, 'app.db'))
 db.exec('PRAGMA journal_mode = WAL')
 db.exec('PRAGMA foreign_keys = ON')

@@ -13,7 +13,8 @@
     "dev:server": "node --env-file-if-exists=.env server/index.js",
     "build": "vite build",
     "start": "NODE_ENV=production node --env-file-if-exists=.env server/index.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test test/"
   },
   "dependencies": {
     "express": "^4.21.1",

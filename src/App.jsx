@@ -24,29 +24,10 @@ import Library from './components/Library'
 
 let nextId = 1
 
-/*
- * Counts openings, not documents: reopening the same file gets a new number.
- * It becomes the reader's React key, so every open mounts a clean one.
- *
- * Without it, opening a second PDF left the first one on screen. The pages
- * are keyed by page number, so React reuses them across documents, and each
- * one keeps a `renderedRef` that says "already drawn" - which made the
- * effect that would have redrawn it return immediately. Title and page count
- * updated; the pages themselves did not.
- */
+
 let nextDocInstance = 1
 
-/**
- * A saved row from the server, as a rail item.
- *
- * Restored folded shut (`expanded: false`) and filed under "Previous notes":
- * its mark goes back on the page, but the answer waits until the reader
- * clicks the passage that produced it, or unfolds it from the list.
- *
- * Notes outlive edits to the operations menu: an id that is no longer in it
- * falls back to showing itself as the label, so a renamed or retired
- * operation loses its heading rather than the answer underneath it.
- */
+
 function restoredItem(row) {
   return {
     id: nextId++,
@@ -346,12 +327,7 @@ export default function App() {
     setFocusedAnnotationId(annotationId)
   }, [])
 
-  /*
-   * Folding a note shut is not deleting it: the answer stays, the mark stays
-   * on the page, and either the chevron or the passage opens it again. The
-   * focus is dropped as well, so clicking the same highlight afterwards still
-   * scrolls to it rather than being a no-op.
-   */
+
   const toggleNote = useCallback(
     (id) => {
       const item = items.find((it) => it.id === id)

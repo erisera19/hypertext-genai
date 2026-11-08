@@ -1,18 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { OPERATIONS } from '../core/operations'
 
-/**
- * The menu that appears over a selection.
- *
- * This is where the reader authors the link: they have chosen the passage,
- * and here they choose what the passage should resolve to. The menu is the
- * visible form of the idea that a link's destination is decided at reading
- * time, not at writing time.
- *
- * Positioning runs in a layout effect so the measure-and-place happens
- * before the browser paints - the menu never appears in the wrong spot
- * and then jump to the right one.
- */
+
 export default function SelectionMenu({ selection, onRun }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)

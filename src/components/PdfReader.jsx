@@ -20,15 +20,7 @@ const CONTEXT_CHARS = 1400
 const NO_BOXES = []
 const THUMB_WIDTH = 60
 
-/**
- * One page of the navigator strip.
- *
- * Drawn from the same pdf.js document the reader is already holding, so a
- * thumbnail costs a small render and no network at all. Like the pages
- * themselves these render only once they are near the strip's viewport - a
- * three-hundred-page paper would otherwise rasterise three hundred canvases
- * to show the reader the first four.
- */
+
 function Thumb({ pdf, pageNumber, current, onGo }) {
   const wrapRef = useRef(null)
   const canvasRef = useRef(null)
@@ -153,8 +145,7 @@ function Page({
       const canvas = canvasRef.current
       const textDiv = textRef.current
       if (!canvas || !textDiv) return
-
-      // Draw at device resolution so the page is not soft on retina screens.
+      
       const dpr = window.devicePixelRatio || 1
       canvas.width = Math.floor(viewport.width * dpr)
       canvas.height = Math.floor(viewport.height * dpr)
@@ -176,7 +167,6 @@ function Page({
       }
       if (cancelled) return
 
-      // The text layer needs the scale as a custom property in pdf.js v4.
       textDiv.style.setProperty('--scale-factor', String(viewport.scale))
       textDiv.replaceChildren()
 
@@ -201,13 +191,7 @@ function Page({
     }
   }, [visible, size, pdf, pageNumber, onTextReady])
 
-  /*
-   * Saved marks are hit-tested here rather than being clickable elements.
-   * The overlay they live in is `pointer-events: none` and the text layer
-   * sits above it (z-index: 1), so a click never reaches a box; and giving
-   * them pointer events would mean stealing drags from text selection.
-   * Comparing coordinates instead leaves selection untouched.
-   */
+
   function handleClick(e) {
     if (!savedBoxes.length || !onRevealAnnotation) return
 
@@ -270,19 +254,14 @@ export default function PdfReader({
   const [highlightBoxes, setHighlightBoxes] = useState({})
   const [savedBoxes, setSavedBoxes] = useState({})
 
-  // Only the anchored ones can be drawn; a note saved before anchoring
-  // existed, or on a page whose text layer never resolved, still lives in
-  // the rail - it just has no mark on the page.
+
   const anchored = useMemo(
     () => savedAnnotations.filter((a) => a.anchor?.segments?.length),
     [savedAnnotations]
   )
 
-  /*
-   * Redraws every saved mark from its stored character offsets. Like the
-   * live overlay, this never caches pixels: a page finishing its render, a
-   * resize or a zoom all just run it again.
-   */
+
+  // Redraws every saved mark from its stored character offsets. 
   const recomputeSaved = useCallback(() => {
     const root = rootRef.current
     if (!root) return
@@ -315,9 +294,7 @@ export default function PdfReader({
   )
 
   // Redraws the highlight overlay from whatever the live Selection is right
-  // now. Never caches pixel boxes across calls - everything is measured
-  // fresh each time, so a resize, a zoom change, or a page finishing its
-  // render all self-correct the next time this runs.
+  // now. 
   const recomputeHighlights = useCallback(() => {
     const root = rootRef.current
     if (!root) return
@@ -463,9 +440,7 @@ export default function PdfReader({
 
   /*
    * Which page the reader is on, for the counter in the bar and the mark in
-   * the navigator. The margins shrink the observed area to a band across the
-   * middle of the scroller, so exactly one page is "current" - thresholds
-   * alone would report two whenever a page boundary is on screen.
+   * the navigator. 
    */
   useEffect(() => {
     const scroller = rootRef.current

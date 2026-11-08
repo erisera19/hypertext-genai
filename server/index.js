@@ -1,16 +1,4 @@
-/**
- * The server: accounts, library, annotations, the model proxy, and in a
- * deployment the built app itself.
- *
- * In development Vite serves the app on 5173 and forwards every /api/ call
- * here, so the code path under test is the one that ships. In a deployment
- * this process is the whole thing: `npm run build` then `npm start`.
- *
- * Guest use needs none of the account routes: the reader can open a document
- * and ask questions without one. What an account adds is a library of what
- * you have opened and the notes you made on it - and, once this is on a
- * public URL, it is also what stops a stranger spending the API key.
- */
+
 
 import express from 'express'
 import { existsSync } from 'node:fs'
@@ -45,18 +33,12 @@ import { mountGenerate } from './generate.js'
 // Hosts hand the port over in PORT; PERSISTENCE_PORT stays for local runs.
 const PORT = process.env.PORT || process.env.PERSISTENCE_PORT || 5175
 
-/*
- * Open sign-up is right for a tool anyone can try and not needed for a closed
- * study.
- * Set ALLOW_SIGNUP=false to shut the door.
- */
+
 const ALLOW_SIGNUP = process.env.ALLOW_SIGNUP !== 'false'
 
 const app = express()
 
-// Behind a platform's TLS terminator the app itself speaks HTTP, so the
-// forwarded headers are what tell it the reader is on HTTPS. That in turn is
-// what decides whether the session cookie gets its `secure` flag.
+
 app.set('trust proxy', 1)
 
 app.use(express.json())
@@ -158,12 +140,7 @@ app.delete('/api/library/:hash', requireUser, (req, res) => {
 
 /* ---------- documents ---------- */
 
-/**
- * Uploads a document the reader just opened from disk. The body is the raw
- * file; title and format travel as query params so no multipart parser is
- * needed. Storing is what makes the library able to reopen a document
- * without asking for the file again, so this requires an account.
- */
+
 app.post(
   '/api/documents',
   requireUser,
@@ -284,11 +261,7 @@ mountGenerate(app)
 
 /* ---------- the app itself, when there is a build to serve ---------- */
 
-/*
- * Only in a deployment. In development Vite serves the app with hot reload
- * and proxies here, so a stale `dist/` sitting on disk must not shadow it -
- * hence the explicit opt-in rather than "serve it if the folder exists".
- */
+
 const here = dirname(fileURLToPath(import.meta.url))
 const distDir = join(here, '..', 'dist')
 const serveApp = process.env.SERVE_APP === 'true' || process.env.NODE_ENV === 'production'

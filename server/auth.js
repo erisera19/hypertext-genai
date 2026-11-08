@@ -1,15 +1,4 @@
-/**
- * Passwords and sessions.
- *
- * Hashing uses scrypt from `node:crypto` rather than bcrypt/argon2 so there
- * is no native module to compile. Comparison is constant-time.
- *
- * The session token is random, stored server-side, and sent to the browser
- * as an httpOnly cookie - so the client never supplies its own identity and
- * cannot forge someone else's. (An earlier version of this project scoped
- * saved notes by a client-generated ID kept in localStorage, which any
- * viewer could read and any caller could spoof.)
- */
+
 
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
@@ -48,10 +37,6 @@ export function endSession(token) {
   if (token) deleteSession(token)
 }
 
-/**
- * Minimal Cookie header parsing - avoids a cookie-parser dependency for the
- * one cookie this app sets.
- */
 function readCookie(req, name) {
   const header = req.headers.cookie
   if (!header) return null
@@ -65,13 +50,7 @@ function readCookie(req, name) {
   return null
 }
 
-/*
- * `secure` follows the request rather than a build flag: `req.secure` is true
- * when the reader is on HTTPS, including behind a platform's TLS terminator,
- * because the app sets `trust proxy`. So a deployment gets a cookie that will
- * not travel in the clear, and localhost over plain HTTP still works - which
- * a hard-coded `secure: true` would quietly break.
- */
+
 const cookieOptions = (req) => ({
   httpOnly: true,
   sameSite: 'lax',
@@ -87,11 +66,7 @@ export function clearSessionCookie(req, res) {
   res.clearCookie(COOKIE_NAME, cookieOptions(req))
 }
 
-/**
- * Attaches `req.user` when a valid session cookie is present. Never rejects -
- * the app has a working guest mode, so routes decide for themselves whether
- * they need an account.
- */
+
 export function attachUser(req, _res, next) {
   const token = readCookie(req, COOKIE_NAME)
   req.sessionToken = token

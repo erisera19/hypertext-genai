@@ -1,20 +1,4 @@
-/**
- * Durable anchors for saved highlights.
- *
- * The highlight boxes drawn by pdfSelectionOverlay.js are pixel geometry at
- * the current render scale, measured from a live DOM Range. None of that can
- * be stored: it would break at a different zoom, scale, window size or device
- * pixel ratio.
- *
- * What is stable is the text itself. A page's text layer always contains the
- * same characters in the same order for the same PDF, so a highlight is saved
- * as character offsets into that page's text - one segment per page it covers
- * - and the Range (and from it, the boxes) is rebuilt on load.
- *
- * Per-page segments rather than one document-wide offset pair, because pages
- * render lazily as they scroll into view: each page can restore its own marks
- * as soon as its own text layer exists, independently of the rest.
- */
+
 
 import { offsetWithin } from './domOffsets'
 
@@ -55,9 +39,7 @@ export function computeAnchorSegments(range, root) {
 
 /**
  * Rebuilds a DOM Range from offsets into a page's text layer. Returns null if
- * the page has not rendered, or if the offsets fall outside its text - a PDF
- * whose text layer somehow differs from when the note was saved loses its
- * highlight rather than drawing one in the wrong place.
+ * the page has not rendered, or if the offsets fall outside its text 
  */
 export function rangeForSegment(pageEl, start, end) {
   const layer = pageEl.querySelector('.page__text')

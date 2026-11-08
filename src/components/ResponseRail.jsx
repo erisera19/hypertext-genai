@@ -1,26 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
-/**
- * The margin rail.
- *
- * A saved answer belongs to the passage that produced it, so the passage is
- * how you get back to it: reopening a document marks the page but leaves the
- * rail quiet, and clicking a mark unfolds that answer. Listing every answer
- * on open made the rail a sidebar of results; this way the highlight is the
- * link, and following it is what retrieves the elaboration.
- *
- * Which section a note sits in is decided when the document opens and never
- * changes: answers asked for in this sitting stay at the top, and everything
- * restored waits under "Previous notes". A note that moved between sections
- * as you folded it would be impossible to keep track of.
- *
- * Folding is therefore the only thing the chevron changes, and it works the
- * same in both sections - which the earlier hide button did not, since a note
- * in "Previous notes" was already hidden and clicking it did nothing.
- *
- * Deleting is separate and deliberately unlike it: folding is reversible and
- * gets a chevron, deleting is not and gets the word.
- */
+
 
 /** How many lines of the passage show before it is cut off. */
 const QUOTE_LINES = { folded: 2, open: 3 }
@@ -29,12 +9,7 @@ function Note({ item, focused, innerRef, onToggle, onDismiss }) {
   const open = !!item.expanded
   const working = item.status !== 'done'
 
-  /*
-   * A long selection would otherwise fill the rail and push its own answer
-   * off the bottom, so the passage is clamped and opens on request. Measured
-   * rather than guessed from length: whether three lines is enough depends on
-   * the rail's width and the words themselves.
-   */
+
   const [showAll, setShowAll] = useState(false)
   const [clipped, setClipped] = useState(false)
   const quoteRef = useRef(null)

@@ -1,14 +1,6 @@
-/**
- * Document adapters.
- *
- * Text formats (TXT, DOCX) become an ordered list of typed blocks:
- *
- * PDF keeps its own pdf.js document instead of being flattened to text.
- *
- * `App.jsx` branches on `kind` to choose `Reader` or `PdfReader`. Adding a
- * text-like format (HTML, Markdown) means producing the same blocks here; a
- * format that needs its own layout would get its own `kind`, the way PDF did.
- */
+
+ // Document adapters.
+
 
 import mammoth from 'mammoth/mammoth.browser'
 import * as pdfjsLib from 'pdfjs-dist'
@@ -20,11 +12,7 @@ export const BLOCK_MODEL = 2
 
 const clean = (s) => String(s || '').replace(/\s+/g, ' ').trim()
 
-/**
- * How a block reads when it is handed to the model as context. A table's
- * cells are joined with " | " and its rows with newlines, so the model sees
- * a grid rather than a run of unrelated words.
- */
+
 export function blockPromptText(block) {
   if (block.type === 'table') {
     return block.rows.map((row) => row.join(' | ')).join('\n')
@@ -137,13 +125,8 @@ async function loadDocx(arrayBuffer) {
   return htmlToBlocks(new DOMParser().parseFromString(html, 'text/html').body)
 }
 
-/**
- * A scanned page has no text items at all (or only whitespace) - pdf.js can
- * still draw its bitmap, but there is nothing for a text layer to sit on,
- * so selection would silently do nothing. Check before handing the document
- * to the reader rather than let that fail quietly. Most real papers have
- * text from page one, so this returns as soon as a page has any.
- */
+//check for empty pdfs
+
 async function hasSelectableText(pdf) {
   for (let n = 1; n <= pdf.numPages; n++) {
     const page = await pdf.getPage(n)
@@ -156,9 +139,7 @@ async function hasSelectableText(pdf) {
 }
 
 async function loadPdf(arrayBuffer) {
-  // pdf.js transfers the buffer it is given to its worker, which detaches it.
-  // The caller still needs these bytes (to upload, or to hash), so hand over
-  // a copy rather than the original.
+
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise
 
   if (!(await hasSelectableText(pdf))) {
@@ -184,7 +165,7 @@ export async function loadFromBytes({ arrayBuffer, title, format }) {
   }
 
   let blocks
-  if (format === 'txt' || format === 'md') blocks = loadTxt(arrayBuffer)
+  if (format === 'txt') blocks = loadTxt(arrayBuffer)
   else if (format === 'docx') blocks = await loadDocx(arrayBuffer)
   else throw new Error(`Unsupported file type: .${format}. Use PDF, DOCX or TXT.`)
 
@@ -202,4 +183,4 @@ export async function loadDocument(file) {
   return { document: await loadFromBytes({ arrayBuffer, title, format }), arrayBuffer }
 }
 
-export const ACCEPTED = '.pdf,.docx,.txt,.md'
+export const ACCEPTED = '.pdf,.docx,.txt'

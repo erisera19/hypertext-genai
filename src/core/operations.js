@@ -1,12 +1,6 @@
 /**
  * The menu of operations a reader can invoke on a selected passage.
  *
- * This list is the heart of the project: where most existing tools offer a
- * single "explain" action, the reader here chooses what kind of elaboration
- * they want. The set deliberately reaches past definition and summary into
- * operations that ask the reader to engage with the passage rather than
- * skip past it.
- *
  * Each operation carries the instruction that will be handed to the model.
  * Adding an operation means adding one entry here - nothing else changes.
  */
