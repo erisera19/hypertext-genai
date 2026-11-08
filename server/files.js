@@ -1,11 +1,6 @@
-/**
- * Stored document bytes.
- *
- * Files are written under data/uploads, named by their content hash, so the
- * same paper uploaded by several users is stored once. The hash is verified
- * server-side before anything is written - the client computes one to look
- * the document up, but a path is never built from a value the client chose.
- */
+
+ // Stored document bytes.
+
 
 import { createHash } from 'node:crypto'
 import { mkdirSync, existsSync } from 'node:fs'
@@ -22,7 +17,7 @@ export function sha256Hex(buffer) {
   return createHash('sha256').update(buffer).digest('hex')
 }
 
-/** Rejects anything that is not a bare 64-char hex digest. */
+/** Rejects anything that is not a  64-char hex digest. */
 export function isValidHash(hash) {
   return typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)
 }

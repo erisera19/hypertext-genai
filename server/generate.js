@@ -2,18 +2,7 @@
  * The model proxy.
  *
  * The browser posts a request body to /api/generate and the key is attached
- * here, server-side, so it is never in client JavaScript.
- 
- *
- * That leaves the real problem: on a public URL this is a billed API key
- * anyone with the link can spend. Two limits bound it instead of a login.
- *
- *   per identity   a signed-in account, or a guest's IP address, gets a
- *                  fixed number of questions a minute. Stops one person,
- *                  or one loop, monopolising the key.
- *   overall        a ceiling on requests per day across everyone. Caps the
- *                  worst case in money rather than in politeness, which is
- *                  what matters if a link is shared further than intended.
+ * here, server-side
  *
  */
 
@@ -24,9 +13,7 @@ const PER_DAY = Number(process.env.GENERATE_PER_DAY || 400)
 const WINDOW_MS = 60_000
 const DAY_MS = 86_400_000
 
-/* Recent request times per caller, in memory. Lost on restart, which is the
-   right trade for a single process: the point is to bound spending, not to
-   meter usage precisely. */
+
 const recent = new Map()
 let dayStarted = Date.now()
 let today = 0
@@ -72,13 +59,7 @@ setInterval(() => {
 
 export function mountGenerate(app) {
   const key = process.env.GEMINI_API_KEY || ''
-  /*
-   * Pinned, not an alias. `gemini-flash-latest` follows whatever Google
-   * promotes, which is both the most contended model and a moving target -
-   * it silently became a thinking model under us once, and the output
-   * budget that had been fine for months started truncating answers
-   * mid-sentence. A fixed id also lets an evaluation say what it tested.
-   */
+
   const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite'
 
   if (!key) {
@@ -89,17 +70,17 @@ export function mountGenerate(app) {
   }
 
   app.post('/api/generate', async (req, res) => {
-    if (!key) {
-      res.status(503).json({ error: 'The server has no API key configured.' })
-      return
-    }
 
-    // `req.ip` is the forwarded client address, because the app trusts the proxy.
     const who = req.user ? `user:${req.user.id}` : `ip:${req.ip}`
     const rate = checkRate(who)
     if (!rate.ok) {
       if (rate.retryAfter) res.set('Retry-After', String(rate.retryAfter))
       res.status(rate.status).json({ error: rate.message })
+      return
+    }
+
+    if (!key) {
+      res.status(503).json({ error: 'The server has no API key configured.' })
       return
     }
 

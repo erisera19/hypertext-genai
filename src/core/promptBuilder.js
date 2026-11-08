@@ -1,14 +1,6 @@
-/**
- * Turns a reader's selection into a prompt for the language model.
- *
- * This is the retrieval-augmented step. The model is not asked about the
- * selected text in isolation: it is given the surrounding passage and the
- * document's own details, so the response is about this text in this
- * document rather than a generic answer about the topic.
- *
- * Keeping this in one place means the prompting strategy can be revised,
- * compared, and written up without touching the interface.
- */
+
+ // Turns a reader's selection into a prompt for the language model.
+
 
 const MAX_CONTEXT_CHARS = 4000
 

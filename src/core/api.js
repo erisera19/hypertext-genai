@@ -1,13 +1,6 @@
-/**
- * Client for the accounts/library/annotations API.
- *
- * The session lives in an httpOnly cookie, so there is no token to keep or
- * attach here - the browser sends it, and this module never sees it.
- *
- * `NotSignedIn` is thrown for a 401 so callers can tell "you are a guest"
- * apart from "the server is broken". Guest mode is a supported way to use
- * the app, not an error state.
- */
+
+ // Client for the accounts/library/annotations API.
+
 
 export class NotSignedIn extends Error {
   constructor() {
@@ -44,11 +37,7 @@ async function request(path, { method = 'GET', body, raw, query } = {}) {
 
 /* ---------- accounts ---------- */
 
-/**
- * Who is signed in, and whether this copy of the server is taking new
- * accounts. A closed study turns sign-up off, and the panel should not offer
- * a route the server will refuse.
- */
+
 export async function session() {
   const { user, signupAllowed } = await request('/api/auth/me')
   return { user, signupAllowed: signupAllowed !== false }

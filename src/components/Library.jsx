@@ -1,12 +1,4 @@
-/**
- * The shelf a signed-in reader comes back to.
- *
- * Each document is drawn as a cover rather than a row, because a library is
- * recognised by sight before it is read: the reader is usually looking for
- * the paper they were in the middle of.
- * The yellow tabs down the edge of a cover are its saved notes, one each, so
- * a document that has been worked through looks worked through from here.
- */
+
 
 const KIND = {
   pdf: 'PDF',

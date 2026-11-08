@@ -1,32 +1,9 @@
-/**
- * Selection-highlight geometry for the PDF reader.
- *
- * pdf.js's text layer draws one absolutely-positioned span per line, each
- * scaled horizontally (`transform: scaleX(...)`) so the line's total width
- * matches the painted line beneath it. That scale is an average over the
- * whole line, so native `::selection` painting only lines up with the
- * canvas at the very start and end of a line - mid-line it drifts off the
- * glyphs, and `line-height: 1` on the text layer clips descenders.
- *
- * Rather than fight pdf.js's metrics, native selection painting is turned
- * off (`.textLayer ::selection { background: transparent }`) and this
- * module computes highlight boxes to draw instead: one box per visual
- * line, snapped outward to whole words (the drift only matters mid-word),
- * padded so descenders sit inside the bar, split per page for a selection
- * that crosses a page boundary.
- *
- * The live DOM Selection/Range is never mutated here - only clones - so
- * copy-to-clipboard keeps returning exactly what the reader dragged over.
- */
+
+
 
 const WHITESPACE = /[\s ]/
 
-/**
- * A clone of `range`, expanded outward to the nearest word boundaries.
- * Only walks within the start/end text node - pdf.js gives each visual
- * line its own span, so a selection never needs to cross a span boundary
- * to reach a word's edge.
- */
+
 export function expandToWordBoundaries(range) {
   const expanded = range.cloneRange()
 
